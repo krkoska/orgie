@@ -3,11 +3,15 @@ import logger from '../utils/logger';
 
 const connectDB = async () => {
     try {
-        const uri = process.env.MONGO_URI || 'mongodb://localhost:27017/sports-organizer';
+        const uri = process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb://localhost:27017/sports-organizer';
+
+        // Scrub password from URI for logging
+        const scrubbedUri = uri.replace(/\/\/.*:.*@/, '//****:****@');
+        logger.info(`Connecting to MongoDB at: ${scrubbedUri}`);
 
         // Options often needed for Azure Cosmos DB
         const options = {
-            // retryWrites: false, // Often required for Cosmos DB RU clusters
+            serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
         };
 
         const conn = await mongoose.connect(uri, options);
