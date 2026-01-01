@@ -44,12 +44,7 @@ const Profile: React.FC = () => {
             }
 
             const { data } = await api.put('/users/profile', updateData);
-
-            // Re-login with the same token to update context (data contains updated user info but no new token from this endpoint usually)
-            const token = localStorage.getItem('token');
-            if (token) {
-                login(token, data);
-            }
+            login(data);
 
             setSuccess(t('profileUpdated') || 'Profile updated successfully');
             setFormData(prev => ({ ...prev, password: '', confirmPassword: '' }));
