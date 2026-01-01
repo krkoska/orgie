@@ -1,0 +1,12 @@
+{
+    "name": "orgie-unified",
+    "version": "1.0.0",
+    "description": "Unified build for Azure deployment",
+    "main": "server/dist/index.js",
+    "scripts": {
+        "start": "node server/dist/index.js"
+    },
+    "engines": {
+        "node": ">=18.x"
+    }
+}
