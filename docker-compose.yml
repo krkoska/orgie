@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: sports_organizer_db
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      # Optional: set default database name if needed for init scripts, 
+      # though connection string usually determines the DB.
+      - MONGO_INITDB_DATABASE=sports-organizer
+
+volumes:
+  mongodb_data:
