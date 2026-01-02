@@ -7,7 +7,9 @@ export const registerSchema = z.object({
         .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
         .regex(/[0-9]/, 'Password must contain at least one number'),
     firstName: z.string().min(1, 'First name is required'),
-    lastName: z.string().min(1, 'Last name is required')
+    lastName: z.string().min(1, 'Last name is required'),
+    nickname: z.string().max(30, 'Nickname too long').optional(),
+    preferNickname: z.boolean().optional()
 });
 
 export const loginSchema = z.object({

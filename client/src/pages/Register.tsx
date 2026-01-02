@@ -10,6 +10,8 @@ const Register: React.FC = () => {
         password: '',
         firstName: '',
         lastName: '',
+        nickname: '',
+        preferNickname: false,
         confirmPassword: ''
     });
     const { login } = useAuth();
@@ -26,7 +28,11 @@ const Register: React.FC = () => {
     }
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
+        const { name, value, type, checked } = e.target;
+        setFormData({
+            ...formData,
+            [name]: type === 'checkbox' ? checked : value
+        });
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -58,7 +64,21 @@ const Register: React.FC = () => {
                 </div>
                 <div className="form-group">
                     <label>{t('lastName') || 'Last Name'}</label>
-                    <input name="lastName" value={formData.lastName} onChange={handleChange} />
+                    <input name="lastName" value={formData.lastName} onChange={handleChange} required />
+                </div>
+                <div className="form-group">
+                    <label>{t('nickname') || 'Nickname'}</label>
+                    <input name="nickname" value={formData.nickname} onChange={handleChange} placeholder={t('nickname') || 'Nickname'} />
+                </div>
+                <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
+                    <input
+                        type="checkbox"
+                        name="preferNickname"
+                        checked={formData.preferNickname}
+                        onChange={handleChange}
+                        style={{ width: 'auto' }}
+                    />
+                    <label style={{ marginBottom: 0 }}>{t('preferNicknameLabel') || 'Use nickname'}</label>
                 </div>
                 <div className="form-group">
                     <label>{t('email')}</label>

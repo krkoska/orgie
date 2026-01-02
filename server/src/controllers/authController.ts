@@ -39,7 +39,7 @@ const setTokenCookies = (res: Response, accessToken: string, refreshToken: strin
 export const registerUser = async (req: Request, res: Response) => {
     try {
         const validatedData = registerSchema.parse(req.body);
-        const { email, password, firstName, lastName } = validatedData;
+        const { email, password, firstName, lastName, nickname, preferNickname } = validatedData;
 
         const userExists = await User.findOne({ email });
 
@@ -52,7 +52,9 @@ export const registerUser = async (req: Request, res: Response) => {
             email,
             passwordHash: password,
             firstName,
-            lastName
+            lastName,
+            nickname,
+            preferNickname: preferNickname || false
         });
 
         if (user) {
@@ -74,8 +76,9 @@ export const registerUser = async (req: Request, res: Response) => {
             });
         }
     } catch (error: any) {
-        if (error.name === 'ZodError') {
-            return res.status(400).json({ message: error.errors[0].message });
+        if (error.name === 'ZodError' || error instanceof Error && 'issues' in error) {
+            const message = (error as any).issues?.[0]?.message || (error as any).errors?.[0]?.message || error.message;
+            return res.status(400).json({ message });
         }
         logger.error('Registration error', { error: error.message, email: req.body.email });
         res.status(500).json({ message: error.message });
@@ -111,8 +114,9 @@ export const loginUser = async (req: Request, res: Response) => {
             res.status(401).json({ message: 'Invalid email or password' });
         }
     } catch (error: any) {
-        if (error.name === 'ZodError') {
-            return res.status(400).json({ message: error.errors[0].message });
+        if (error.name === 'ZodError' || error instanceof Error && 'issues' in error) {
+            const message = (error as any).issues?.[0]?.message || (error as any).errors?.[0]?.message || error.message;
+            return res.status(400).json({ message });
         }
         logger.error('Login error', { error: error.message, email: req.body.email });
         res.status(500).json({ message: error.message });
