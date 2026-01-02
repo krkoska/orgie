@@ -115,6 +115,10 @@ const translations: Translations = {
     'minAttendees': { en: 'Min. Attendees', cs: 'Min. účastníků' },
     'maxAttendees': { en: 'Max. Attendees', cs: 'Max. účastníků' },
     'loading': { en: 'Loading...', cs: 'Načítání...' },
+    'confirmRemoveAttendee': { en: 'Remove Attendee', cs: 'Odebrat Účastníka' },
+    'confirmRemoveAttendeeMsg': { en: 'Are you sure you want to remove this person from the entire event and all terms?', cs: 'Opravdu chcete tuto osobu odebrat z celé události a všech jejích termínů?' },
+    'attendeeRemoved': { en: 'Attendee removed successfully', cs: 'Účastník byl úspěšně odebrán' },
+    'removeAttendee': { en: 'Remove Attendee', cs: 'Odebrat účastníka' },
 
     // Modal
     'deleteEventTitle': { en: 'Delete Event', cs: 'Smazat Událost' },

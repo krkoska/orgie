@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 
 interface User {
     _id: string;
@@ -23,9 +23,12 @@ interface TermAttendanceMatrixProps {
         minAttendees: number;
         maxAttendees: number;
         attendees: User[];
+        ownerId?: string | User;
+        administrators?: (string | User)[];
     };
     onAttendanceToggle: (termId: string) => Promise<void>;
     onAddSelf: () => Promise<void>;
+    onRemoveAttendee?: (userId: string) => Promise<void>;
     showPast?: boolean;
     readOnly?: boolean;
 }
@@ -35,6 +38,7 @@ const TermAttendanceMatrix: React.FC<TermAttendanceMatrixProps> = ({
     event,
     onAttendanceToggle,
     onAddSelf,
+    onRemoveAttendee,
     showPast = false,
     readOnly = false
 }) => {
@@ -152,6 +156,11 @@ const TermAttendanceMatrix: React.FC<TermAttendanceMatrixProps> = ({
     const users = Array.from(allUsersMap.values());
     const currentUserInMatrix = user && users.some(u => u._id === user._id);
 
+    // Check if current user is admin or owner
+    const isOwner = event.ownerId && user && (typeof event.ownerId === 'string' ? event.ownerId === user._id : (event.ownerId as any)._id === user._id);
+    const isAdmin = event.administrators && user && event.administrators.some(admin => (typeof admin === 'string' ? admin === user._id : (admin as any)._id === user._id));
+    const canManageAttendees = isOwner || isAdmin;
+
     // Check if user is attending a specific term
     const isAttending = (termId: string, userId: string): boolean => {
         const term = filteredTerms.find(t => t._id === termId);
@@ -220,45 +229,64 @@ const TermAttendanceMatrix: React.FC<TermAttendanceMatrixProps> = ({
                 </div>
             )}
 
-            {users.length === 0 ? (
-                <p style={{ color: '#666' }}>{t('noAttendees') || 'No one has signed up yet. Be the first!'}</p>
-            ) : (
-                <div className="attendance-matrix-wrapper">
-                    <table className="attendance-matrix">
-                        <thead>
-                            <tr>
-                                <th className="sticky-col">{t('name') || 'Name'}</th>
-                                {visibleTerms.map(term => {
-                                    const meetMin = meetsMinimum(term);
-                                    return (
-                                        <th
-                                            key={term._id}
-                                            style={{
-                                                background: meetMin ? '#dcfce7' : '#f9fafb',
-                                                borderBottom: meetMin ? '2px solid #10b981' : '1px solid #e5e7eb'
-                                            }}
-                                        >
-                                            <div className="term-header">
-                                                <div className="term-date" style={{ fontWeight: 600 }}>
-                                                    {new Date(term.date).toLocaleDateString()}
-                                                </div>
-                                                <div className="term-count" style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
-                                                    {term.attendees.length} {t('attendees') || 'attendees'}
-                                                </div>
+            <div className="attendance-matrix-wrapper">
+                <table className="attendance-matrix">
+                    <thead>
+                        <tr>
+                            <th className="sticky-col">{t('name') || 'Name'}</th>
+                            {visibleTerms.map(term => {
+                                const meetMin = meetsMinimum(term);
+                                return (
+                                    <th
+                                        key={term._id}
+                                        style={{
+                                            background: meetMin ? '#dcfce7' : '#f9fafb',
+                                            borderBottom: meetMin ? '2px solid #10b981' : '1px solid #e5e7eb'
+                                        }}
+                                    >
+                                        <div className="term-header">
+                                            <div className="term-date" style={{ fontWeight: 600 }}>
+                                                {new Date(term.date).toLocaleDateString()}
                                             </div>
-                                        </th>
-                                    );
-                                })}
+                                            <div className="term-count" style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                                                {term.attendees.length} {t('attendees') || 'attendees'}
+                                            </div>
+                                        </div>
+                                    </th>
+                                );
+                            })}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {users.length === 0 ? (
+                            <tr>
+                                <td colSpan={visibleTerms.length + 1} style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>
+                                    {t('noAttendees') || 'No one has signed up yet. Be the first!'}
+                                </td>
                             </tr>
-                        </thead>
-                        <tbody>
-                            {users.map(attendee => {
+                        ) : (
+                            users.map(attendee => {
                                 const isCurrentUser = user && attendee._id === user._id;
                                 return (
                                     <tr key={attendee._id} className={isCurrentUser ? 'current-user-row' : ''}>
-                                        <td className="sticky-col user-name">
-                                            {attendee.firstName} {attendee.lastName}
-                                            {isCurrentUser && <span className="you-badge">{t('you') || '(You)'}</span>}
+                                        <td className="sticky-col user-name user-name-cell">
+                                            <div className="user-name-container">
+                                                <span className="user-name-text">
+                                                    {attendee.firstName} {attendee.lastName}
+                                                    {isCurrentUser && <span className="you-badge">{t('you')}</span>}
+                                                </span>
+                                                <div className="user-actions">
+                                                    {!readOnly && onRemoveAttendee && (isCurrentUser || canManageAttendees) && (
+                                                        <button
+                                                            onClick={() => onRemoveAttendee(attendee._id)}
+                                                            className="icon-btn-delete"
+                                                            title={t('removeAttendee')}
+                                                        >
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
                                         </td>
                                         {visibleTerms.map(term => {
                                             const attending = isAttending(term._id, attendee._id);
@@ -289,11 +317,11 @@ const TermAttendanceMatrix: React.FC<TermAttendanceMatrixProps> = ({
                                         })}
                                     </tr>
                                 );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
-            )}
+                            })
+                        )}
+                    </tbody>
+                </table>
+            </div>
         </div>
     );
 };

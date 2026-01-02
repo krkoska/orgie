@@ -81,6 +81,10 @@ const EventDetailPage: React.FC = () => {
     const [bulkDeleteEnd, setBulkDeleteEnd] = useState('');
     const [isDeletingBulk, setIsDeletingBulk] = useState(false);
 
+    // Delete Attendee Modal State
+    const [isDeleteAttendeeModalOpen, setIsDeleteAttendeeModalOpen] = useState(false);
+    const [attendeeToRemove, setAttendeeToRemove] = useState<string | null>(null);
+
     const fetchEventDetails = async () => {
         try {
             const { data } = await api.get(`/events/uuid/${uuid}`);
@@ -200,6 +204,24 @@ const EventDetailPage: React.FC = () => {
             showToast(t('attendanceUpdated') || 'Attendance updated', 'success');
         } catch (error: any) {
             showToast(error.response?.data?.message || 'Failed to update attendance', 'error');
+        }
+    };
+
+    const handleRequestRemoveAttendee = async (userId: string) => {
+        setAttendeeToRemove(userId);
+        setIsDeleteAttendeeModalOpen(true);
+    };
+
+    const confirmDeleteAttendee = async () => {
+        if (!event || !attendeeToRemove) return;
+        try {
+            await api.delete(`/events/uuid/${event.uuid}/attendees/${attendeeToRemove}`);
+            setIsDeleteAttendeeModalOpen(false);
+            setAttendeeToRemove(null);
+            fetchEventDetails();
+            showToast(t('attendeeRemoved') || 'Attendee removed successfully', 'success');
+        } catch (error: any) {
+            showToast(error.response?.data?.message || 'Failed to remove attendee', 'error');
         }
     };
 
@@ -490,6 +512,7 @@ const EventDetailPage: React.FC = () => {
                         event={event}
                         onAttendanceToggle={handleAttendanceToggle}
                         onAddSelf={handleToggleEventAttendance}
+                        onRemoveAttendee={handleRequestRemoveAttendee}
                     />
                 )}
             </div>
@@ -572,6 +595,7 @@ const EventDetailPage: React.FC = () => {
                                     event={event!}
                                     onAttendanceToggle={async () => { }}
                                     onAddSelf={async () => { }}
+                                    onRemoveAttendee={handleRequestRemoveAttendee}
                                     showPast={true}
                                     readOnly={true}
                                 />
@@ -692,6 +716,19 @@ const EventDetailPage: React.FC = () => {
                         </button>
                     </div>
                 </form>
+            </Modal>
+
+            {/* Delete Attendee Confirmation Modal */}
+            <Modal
+                isOpen={isDeleteAttendeeModalOpen}
+                onClose={() => {
+                    setIsDeleteAttendeeModalOpen(false);
+                    setAttendeeToRemove(null);
+                }}
+                onConfirm={confirmDeleteAttendee}
+                title={t('confirmRemoveAttendee')}
+            >
+                <p>{t('confirmRemoveAttendeeMsg')}</p>
             </Modal>
         </div>
     );

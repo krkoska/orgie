@@ -490,3 +490,39 @@ export const deleteArchivedTerms = async (req: Request, res: Response) => {
         res.status(500).json({ message: error.message });
     }
 };
+
+export const removeAttendeeFromEvent = async (req: Request, res: Response) => {
+    try {
+        const { uuid, userId } = req.params;
+        const event = await Event.findOne({ uuid });
+
+        if (!event) {
+            return res.status(404).json({ message: 'Event not found' });
+        }
+
+        const requesterId = (req as any).user._id.toString();
+        const isAdmin = event.administrators.some(adminId => adminId && adminId.toString() === requesterId);
+        const isOwner = event.ownerId && event.ownerId.toString() === requesterId;
+
+        // Permission: Self-removal OR Admin/Owner removal
+        if (requesterId !== userId && !isAdmin && !isOwner) {
+            return res.status(401).json({ message: 'User not authorized to remove this attendee' });
+        }
+
+        // 1. Remove from Event.attendees
+        event.attendees = (event.attendees as any[]).filter(id => id.toString() !== userId);
+        await event.save();
+
+        // 2. Remove from all Terms related to this Event
+        await Term.updateMany(
+            { eventId: event._id },
+            { $pull: { attendees: userId } }
+        );
+
+        logger.info('Attendee removed from event and terms', { eventId: event._id, removedUserId: userId, requesterId });
+        res.json({ message: 'Attendee removed successfully' });
+    } catch (error: any) {
+        logger.error('Error removing attendee', { error: error.message, eventUuid: req.params.uuid, userId: (req as any).user._id });
+        res.status(500).json({ message: error.message });
+    }
+};

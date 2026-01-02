@@ -450,3 +450,43 @@ input[type="time"] {
     gap: 0;
   }
 }
+
+/* User Name Column & Actions */
+.user-name-cell {
+  vertical-align: middle;
+}
+
+.user-name-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.user-name-text {
+  white-space: nowrap;
+}
+
+.user-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+}
+
+.icon-btn-delete {
+  background: none;
+  border: none;
+  color: #ef4444;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.icon-btn-delete:hover {
+  background-color: rgba(239, 68, 68, 0.1);
+  transform: scale(1.1);
+}
