@@ -6,6 +6,8 @@ interface User {
     email: string;
     firstName?: string;
     lastName?: string;
+    nickname?: string;
+    preferNickname?: boolean;
     role: string;
 }
 

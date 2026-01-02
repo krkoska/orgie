@@ -68,7 +68,7 @@ export const createEvent = async (req: Request, res: Response) => {
 
 export const getEvents = async (req: Request, res: Response) => {
     try {
-        const events = await Event.find().populate('ownerId', 'firstName lastName email');
+        const events = await Event.find().populate('ownerId', 'firstName lastName nickname preferNickname email');
         res.json(events);
     } catch (error: any) {
         res.status(500).json({ message: error.message });
@@ -85,8 +85,8 @@ export const getDashboardEvents = async (req: Request, res: Response) => {
                 { ownerId: userId },
                 { administrators: userId }
             ]
-        }).populate('ownerId', 'firstName lastName email')
-            .populate('administrators', 'firstName lastName email');
+        }).populate('ownerId', 'firstName lastName nickname preferNickname email')
+            .populate('administrators', 'firstName lastName nickname preferNickname email');
 
         // Attending: user is in attendees of any Term related to the Event OR in Event.attendees
         const attendingTerms = await Term.find({ attendees: userId }).select('eventId');
@@ -97,8 +97,8 @@ export const getDashboardEvents = async (req: Request, res: Response) => {
                 { _id: { $in: eventIdsFromTerms } },
                 { attendees: userId }
             ]
-        }).populate('ownerId', 'firstName lastName email')
-            .populate('administrators', 'firstName lastName email');
+        }).populate('ownerId', 'firstName lastName nickname preferNickname email')
+            .populate('administrators', 'firstName lastName nickname preferNickname email');
 
         res.json({ managed, attending });
     } catch (error: any) {
@@ -110,8 +110,8 @@ export const getMyEvents = async (req: Request, res: Response) => {
     try {
         const ownerId = (req as any).user._id;
         const events = await Event.find({ ownerId })
-            .populate('ownerId', 'firstName lastName email')
-            .populate('administrators', 'firstName lastName email');
+            .populate('ownerId', 'firstName lastName nickname preferNickname email')
+            .populate('administrators', 'firstName lastName nickname preferNickname email');
         res.json(events);
     } catch (error: any) {
         res.status(500).json({ message: error.message });
@@ -219,9 +219,9 @@ export const updateEvent = async (req: Request, res: Response) => {
 export const getEventByUuid = async (req: Request, res: Response) => {
     try {
         const event = await Event.findOne({ uuid: req.params.uuid })
-            .populate('ownerId', 'firstName lastName email')
-            .populate('administrators', 'firstName lastName email')
-            .populate('attendees', 'firstName lastName email');
+            .populate('ownerId', 'firstName lastName nickname preferNickname email')
+            .populate('administrators', 'firstName lastName nickname preferNickname email')
+            .populate('attendees', 'firstName lastName nickname preferNickname email');
 
         if (!event) {
             return res.status(404).json({ message: 'Event not found' });
@@ -236,7 +236,7 @@ export const getEventByUuid = async (req: Request, res: Response) => {
             date: { $gte: today }
         })
             .sort({ date: 1 })
-            .populate('attendees', 'firstName lastName email');
+            .populate('attendees', 'firstName lastName nickname preferNickname email');
 
         res.json({ event, terms });
     } catch (error: any) {
@@ -380,7 +380,7 @@ export const toggleTermAttendance = async (req: Request, res: Response) => {
         await term.save();
 
         // Populate attendees with user details for response
-        const populatedTerm = await Term.findById(term._id).populate('attendees', 'firstName lastName email');
+        const populatedTerm = await Term.findById(term._id).populate('attendees', 'firstName lastName nickname preferNickname email');
         logger.info('Term attendance toggled', { termId: term._id, userId: (req as any).user._id, attending: isAttendingNow });
 
         res.json({
@@ -413,7 +413,7 @@ export const toggleEventAttendance = async (req: Request, res: Response) => {
 
         await event.save();
 
-        const updatedEvent = await Event.findById(event._id).populate('attendees', 'firstName lastName email');
+        const updatedEvent = await Event.findById(event._id).populate('attendees', 'firstName lastName nickname preferNickname email');
         logger.info('Event attendance toggled', { eventId: event._id, userId: (req as any).user._id, attending: index === -1 });
         res.json({ attendees: updatedEvent?.attendees || [] });
     } catch (error: any) {
@@ -438,7 +438,7 @@ export const getArchivedTerms = async (req: Request, res: Response) => {
             date: { $lt: today }
         })
             .sort({ date: -1 }) // Show most recent past terms first
-            .populate('attendees', 'firstName lastName email');
+            .populate('attendees', 'firstName lastName nickname preferNickname email');
 
         res.json(archivedTerms);
     } catch (error: any) {

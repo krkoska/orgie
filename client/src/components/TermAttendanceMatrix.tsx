@@ -7,6 +7,8 @@ interface User {
     _id: string;
     firstName: string;
     lastName: string;
+    nickname?: string;
+    preferNickname?: boolean;
 }
 
 interface Term {
@@ -272,7 +274,9 @@ const TermAttendanceMatrix: React.FC<TermAttendanceMatrixProps> = ({
                                         <td className="sticky-col user-name user-name-cell">
                                             <div className="user-name-container">
                                                 <span className="user-name-text">
-                                                    {attendee.firstName} {attendee.lastName}
+                                                    {attendee.preferNickname && attendee.nickname
+                                                        ? attendee.nickname
+                                                        : `${attendee.firstName} ${attendee.lastName}`}
                                                     {isCurrentUser && <span className="you-badge">{t('you')}</span>}
                                                 </span>
                                                 <div className="user-actions">

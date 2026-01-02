@@ -68,6 +68,8 @@ export const registerUser = async (req: Request, res: Response) => {
                 email: user.email,
                 firstName: user.firstName,
                 lastName: user.lastName,
+                nickname: user.nickname,
+                preferNickname: user.preferNickname,
                 role: user.role
             });
         }
@@ -100,6 +102,8 @@ export const loginUser = async (req: Request, res: Response) => {
                 email: user.email,
                 firstName: user.firstName,
                 lastName: user.lastName,
+                nickname: user.nickname,
+                preferNickname: user.preferNickname,
                 role: user.role
             });
         } else {
@@ -159,6 +163,8 @@ export const getMe = async (req: Request, res: Response) => {
             email: user.email,
             firstName: user.firstName,
             lastName: user.lastName,
+            nickname: user.nickname,
+            preferNickname: user.preferNickname,
             role: user.role
         });
     } else {

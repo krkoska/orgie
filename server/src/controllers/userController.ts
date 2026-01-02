@@ -20,7 +20,7 @@ export const searchUsers = async (req: Request, res: Response) => {
         } : {};
 
         const users = await User.find(keyword)
-            .select('firstName lastName email _id') // Do not select password
+            .select('firstName lastName nickname preferNickname email _id') // Do not select password
             .limit(10);
 
         res.json(users);
@@ -38,6 +38,8 @@ export const updateUserProfile = async (req: Request, res: Response) => {
         if (user) {
             user.firstName = validatedData.firstName || user.firstName;
             user.lastName = validatedData.lastName || user.lastName;
+            user.nickname = validatedData.nickname !== undefined ? validatedData.nickname : user.nickname;
+            user.preferNickname = validatedData.preferNickname !== undefined ? validatedData.preferNickname : user.preferNickname;
 
             if (validatedData.password) {
                 user.passwordHash = validatedData.password;
@@ -50,6 +52,8 @@ export const updateUserProfile = async (req: Request, res: Response) => {
                 _id: updatedUser._id,
                 firstName: updatedUser.firstName,
                 lastName: updatedUser.lastName,
+                nickname: updatedUser.nickname,
+                preferNickname: updatedUser.preferNickname,
                 email: updatedUser.email,
                 role: updatedUser.role
             });

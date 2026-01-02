@@ -11,6 +11,8 @@ export interface IUser extends Document {
     passwordHash: string;
     firstName?: string;
     lastName?: string;
+    nickname?: string;
+    preferNickname: boolean;
     role: UserRole;
     refreshToken?: string;
     createdAt: Date;
@@ -34,6 +36,11 @@ const UserSchema: Schema = new Schema({
     },
     firstName: String,
     lastName: String,
+    nickname: String,
+    preferNickname: {
+        type: Boolean,
+        default: false
+    },
     role: {
         type: String,
         enum: Object.values(UserRole),

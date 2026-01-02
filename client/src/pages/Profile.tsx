@@ -12,6 +12,8 @@ const Profile: React.FC = () => {
     const [formData, setFormData] = useState({
         firstName: user?.firstName || '',
         lastName: user?.lastName || '',
+        nickname: user?.nickname || '',
+        preferNickname: user?.preferNickname || false,
         password: '',
         confirmPassword: ''
     });
@@ -20,7 +22,11 @@ const Profile: React.FC = () => {
     const [success, setSuccess] = useState('');
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
+        const { name, value, type, checked } = e.target;
+        setFormData({
+            ...formData,
+            [name]: type === 'checkbox' ? checked : value
+        });
         setError('');
         setSuccess('');
     };
@@ -37,7 +43,9 @@ const Profile: React.FC = () => {
         try {
             const updateData: any = {
                 firstName: formData.firstName,
-                lastName: formData.lastName
+                lastName: formData.lastName,
+                nickname: formData.nickname,
+                preferNickname: formData.preferNickname
             };
             if (formData.password) {
                 updateData.password = formData.password;
@@ -75,6 +83,20 @@ const Profile: React.FC = () => {
                 <div className="form-group">
                     <label>{t('lastName') || 'Last Name'}</label>
                     <input name="lastName" value={formData.lastName} onChange={handleChange} required />
+                </div>
+                <div className="form-group">
+                    <label>{t('nickname') || 'Nickname'}</label>
+                    <input name="nickname" value={formData.nickname} onChange={handleChange} placeholder={t('nickname') || 'Nickname'} />
+                </div>
+                <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
+                    <input
+                        type="checkbox"
+                        name="preferNickname"
+                        checked={formData.preferNickname}
+                        onChange={handleChange}
+                        style={{ width: 'auto' }}
+                    />
+                    <label style={{ marginBottom: 0 }}>{t('preferNicknameLabel') || 'Use nickname'}</label>
                 </div>
 
                 <hr style={{ margin: '1.5rem 0', border: 'none', borderTop: '1px solid #eee' }} />

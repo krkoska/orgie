@@ -5,10 +5,19 @@ import { useLanguage } from '../context/LanguageContext';
 import { useToast } from '../context/ToastContext';
 import api from '../services/api';
 import Modal from '../components/Modal';
-import { type User } from '../components/UserSelect';
+
 import EventForm, { EventType, RecurrenceFrequency, type EventFormData } from '../components/EventForm';
 import TermAttendanceMatrix from '../components/TermAttendanceMatrix';
 import { Edit, Calendar, Trash2, Grid, Table, UserPlus, UserCheck } from 'lucide-react';
+
+interface User {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    nickname?: string;
+    preferNickname?: boolean;
+    email?: string;
+}
 
 interface Event {
     _id: string;
@@ -23,12 +32,7 @@ interface Event {
         frequency: RecurrenceFrequency;
         weekDays?: number[];
     };
-    ownerId: {
-        _id: string;
-        firstName: string;
-        lastName: string;
-        email: string;
-    };
+    ownerId: User;
     administrators: User[];
     attendees: User[];
     minAttendees: number;
@@ -347,7 +351,7 @@ const EventDetailPage: React.FC = () => {
                     <div style={{ marginTop: '10px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                         {term.attendees.map(a => (
                             <span key={a._id} style={{ fontSize: '11px', background: '#f3f4f6', padding: '2px 6px', borderRadius: '4px', color: '#4b5563' }}>
-                                {a.firstName} {a.lastName}
+                                {a.preferNickname && a.nickname ? a.nickname : `${a.firstName} ${a.lastName}`}
                             </span>
                         ))}
                     </div>
@@ -396,13 +400,15 @@ const EventDetailPage: React.FC = () => {
                     </div>
                     <div>
                         <strong>{t('owner')}:</strong>
-                        <p style={{ margin: '5px 0' }}>{event.ownerId.firstName} {event.ownerId.lastName}</p>
+                        <p style={{ margin: '5px 0' }}>
+                            {event.ownerId.preferNickname && event.ownerId.nickname ? event.ownerId.nickname : `${event.ownerId.firstName} ${event.ownerId.lastName}`}
+                        </p>
                     </div>
                     {event.administrators.length > 0 && (
                         <div>
                             <strong>{t('administrators') || 'Administrators'}:</strong>
                             <p style={{ margin: '5px 0' }}>
-                                {event.administrators.map(a => `${a.firstName} ${a.lastName}`).join(', ')}
+                                {event.administrators.map(a => a.preferNickname && a.nickname ? a.nickname : `${a.firstName} ${a.lastName}`).join(', ')}
                             </p>
                         </div>
                     )}
