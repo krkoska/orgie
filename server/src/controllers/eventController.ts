@@ -218,13 +218,33 @@ export const updateEvent = async (req: Request, res: Response) => {
 
 export const getEventByUuid = async (req: Request, res: Response) => {
     try {
-        const event = await Event.findOne({ uuid: req.params.uuid })
-            .populate('ownerId', 'firstName lastName nickname preferNickname email')
-            .populate('administrators', 'firstName lastName nickname preferNickname email')
-            .populate('attendees', 'firstName lastName nickname preferNickname email');
+        const event = await Event.findOne({ uuid: req.params.uuid });
 
         if (!event) {
             return res.status(404).json({ message: 'Event not found' });
+        }
+
+        const originalEventAttendees = JSON.parse(JSON.stringify(event.attendees));
+
+        const populatedEvent = await Event.findById(event._id)
+            .populate('ownerId', 'firstName lastName nickname preferNickname email')
+            .populate('administrators', 'firstName lastName nickname preferNickname email')
+            .populate({
+                path: 'attendees.id',
+                model: 'User',
+                select: 'firstName lastName nickname preferNickname email'
+            })
+            .populate('guests.addedBy', 'firstName lastName nickname preferNickname');
+
+        if (populatedEvent) {
+            (populatedEvent.attendees as any) = (populatedEvent.attendees as any).map((a: any, idx: number) => {
+                if (a.kind === 'GUEST' && (a.id === null || a.id === undefined)) {
+                    // Restore original guest ID if population wiped it
+                    const origId = originalEventAttendees[idx]?.id;
+                    return { ...a, id: origId ? origId.toString() : null };
+                }
+                return a;
+            });
         }
 
         // Fetch active terms (today and future)
@@ -234,11 +254,30 @@ export const getEventByUuid = async (req: Request, res: Response) => {
         const terms = await Term.find({
             eventId: event._id,
             date: { $gte: today }
-        })
-            .sort({ date: 1 })
-            .populate('attendees', 'firstName lastName nickname preferNickname email');
+        }).sort({ date: 1 });
 
-        res.json({ event, terms });
+        const originalTermsAttendees = terms.map(t => JSON.parse(JSON.stringify(t.attendees)));
+
+        const populatedTerms = await Promise.all(terms.map((t, tIdx) =>
+            Term.findById(t._id).populate({
+                path: 'attendees.id',
+                model: 'User',
+                select: 'firstName lastName nickname preferNickname email'
+            }).then(pt => {
+                if (pt) {
+                    (pt.attendees as any) = (pt.attendees as any).map((a: any, aIdx: number) => {
+                        if (a.kind === 'GUEST' && (a.id === null || a.id === undefined)) {
+                            const origId = originalTermsAttendees[tIdx][aIdx]?.id;
+                            return { ...a, id: origId ? origId.toString() : null };
+                        }
+                        return a;
+                    });
+                }
+                return pt;
+            })
+        ));
+
+        res.json({ event: populatedEvent, terms: populatedTerms });
     } catch (error: any) {
         res.status(500).json({ message: error.message });
     }
@@ -355,33 +394,64 @@ export const toggleTermAttendance = async (req: Request, res: Response) => {
             return res.status(404).json({ message: 'Term not found' });
         }
 
-        const userId = (req as any).user._id;
-        const userIdStr = userId.toString();
+        const requesterId = (req as any).user._id;
+        const targetUserId = (req.body && req.body.userId) || requesterId.toString();
+        const kind = (req.body && req.body.kind) || 'USER';
 
-        // Check if user is already attending
+        // Check permissions
+        if (targetUserId.toString() !== requesterId.toString()) {
+            const event = await mongoose.model('Event').findById(term.eventId);
+            if (!event) return res.status(404).json({ message: 'Event not found' });
+
+            const isOwner = event.ownerId.toString() === requesterId.toString();
+            const isAdmin = event.administrators.some((id: any) => id.toString() === requesterId.toString());
+
+            // Check if it's a guest added by requester
+            const isGuestPatron = kind === 'GUEST' && event.guests.some((g: any) =>
+                g._id.toString() === targetUserId.toString() && g.addedBy.toString() === requesterId.toString()
+            );
+
+            if (!isOwner && !isAdmin && !isGuestPatron) {
+                return res.status(403).json({ message: 'Not authorized to manage this attendee' });
+            }
+        }
+
+        // Check if user/guest is already attending
         const attendeeIndex = term.attendees.findIndex(
-            (attendeeId: any) => attendeeId.toString() === userIdStr
+            (a: any) => a.id && a.id.toString() === targetUserId.toString() && a.kind === kind
         );
 
         const isAttendingNow = attendeeIndex === -1;
         if (isAttendingNow) {
-            // User is not attending - add them
-            // Check if event has maxAttendees limit
             const event = await mongoose.model('Event').findById(term.eventId);
             if (event && event.maxAttendees && term.attendees.length >= event.maxAttendees) {
                 return res.status(400).json({ message: 'Term is full' });
             }
-            term.attendees.push(userId);
+            term.attendees.push({ id: targetUserId, kind });
         } else {
-            // User is attending - remove them
             term.attendees.splice(attendeeIndex, 1);
         }
 
         await term.save();
 
-        // Populate attendees with user details for response
-        const populatedTerm = await Term.findById(term._id).populate('attendees', 'firstName lastName nickname preferNickname email');
-        logger.info('Term attendance toggled', { termId: term._id, userId: (req as any).user._id, attending: isAttendingNow });
+        const originalAttendees = JSON.parse(JSON.stringify(term.attendees));
+
+        // Populate attendees for response
+        const populatedTerm = await Term.findById(term._id).populate({
+            path: 'attendees.id',
+            model: 'User',
+            select: 'firstName lastName nickname preferNickname email'
+        });
+
+        if (populatedTerm) {
+            (populatedTerm.attendees as any) = (populatedTerm.attendees as any).map((a: any, idx: number) => {
+                if (a.kind === 'GUEST' && (a.id === null || a.id === undefined)) {
+                    const origId = originalAttendees[idx]?.id;
+                    return { ...a, id: origId ? origId.toString() : null };
+                }
+                return a;
+            });
+        }
 
         res.json({
             message: 'Attendance toggled',
@@ -402,20 +472,35 @@ export const toggleEventAttendance = async (req: Request, res: Response) => {
         }
 
         const user = (req as any).user;
-        const userIdStr = user._id.toString();
-        const index = event.attendees.findIndex((id: any) => id.toString() === userIdStr);
+        const requesterId = user._id;
+        const targetUserId = (req.body && req.body.userId) || requesterId.toString();
+        const kind = (req.body && req.body.kind) || 'USER';
 
-        if (index > -1) {
-            event.attendees.splice(index, 1);
+        // Check permissions
+        if (targetUserId.toString() !== requesterId.toString()) {
+            const isOwner = event.ownerId.toString() === requesterId.toString();
+            const isAdmin = event.administrators.some((id: any) => id.toString() === requesterId.toString());
+            const isGuestPatron = kind === 'GUEST' && event.guests.some((g: any) =>
+                g._id.toString() === targetUserId.toString() && g.addedBy.toString() === requesterId.toString()
+            );
+
+            if (!isOwner && !isAdmin && !isGuestPatron) {
+                return res.status(403).json({ message: 'Not authorized to manage this attendee' });
+            }
+        }
+
+        const attendeeIndex = event.attendees.findIndex(
+            (a: any) => a.id && a.id.toString() === targetUserId.toString() && a.kind === kind
+        );
+
+        if (attendeeIndex === -1) {
+            event.attendees.push({ id: targetUserId, kind });
         } else {
-            event.attendees.push(user._id);
+            event.attendees.splice(attendeeIndex, 1);
         }
 
         await event.save();
-
-        const updatedEvent = await Event.findById(event._id).populate('attendees', 'firstName lastName nickname preferNickname email');
-        logger.info('Event attendance toggled', { eventId: event._id, userId: (req as any).user._id, attending: index === -1 });
-        res.json({ attendees: updatedEvent?.attendees || [] });
+        res.json({ attendees: event.attendees });
     } catch (error: any) {
         logger.error('Error toggling event attendance', { error: error.message, eventUuid: req.params.uuid, userId: (req as any).user._id });
         res.status(500).json({ message: error.message });
@@ -433,14 +518,35 @@ export const getArchivedTerms = async (req: Request, res: Response) => {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        const archivedTerms = await Term.find({
+        const terms = await Term.find({
             eventId: event._id,
             date: { $lt: today }
-        })
-            .sort({ date: -1 }) // Show most recent past terms first
-            .populate('attendees', 'firstName lastName nickname preferNickname email');
+        }).sort({ date: -1 });
 
-        res.json(archivedTerms);
+        const originalAttendeesPerTerm = terms.map(t => JSON.parse(JSON.stringify(t.attendees)));
+
+        const populatedTerms = await Promise.all(terms.map(t =>
+            Term.findById(t._id).populate({
+                path: 'attendees.id',
+                model: 'User',
+                select: 'firstName lastName nickname preferNickname email'
+            })
+        ));
+
+        const fixedTerms = populatedTerms.map((t: any, tIdx: number) => {
+            if (t) {
+                t.attendees = t.attendees.map((a: any, aIdx: number) => {
+                    if (a.kind === 'GUEST' && (a.id === null || a.id === undefined)) {
+                        const origId = originalAttendeesPerTerm[tIdx][aIdx]?.id;
+                        return { ...a, id: origId ? origId.toString() : null };
+                    }
+                    return a;
+                });
+            }
+            return t;
+        });
+
+        res.json(fixedTerms);
     } catch (error: any) {
         res.status(500).json({ message: error.message });
     }
@@ -493,36 +599,85 @@ export const deleteArchivedTerms = async (req: Request, res: Response) => {
 
 export const removeAttendeeFromEvent = async (req: Request, res: Response) => {
     try {
-        const { uuid, userId } = req.params;
+        const { uuid } = req.params;
         const event = await Event.findOne({ uuid });
 
         if (!event) {
             return res.status(404).json({ message: 'Event not found' });
         }
 
+        const userId = req.params.userId;
+        const kind = req.query.kind === 'GUEST' ? 'GUEST' : 'USER';
         const requesterId = (req as any).user._id.toString();
-        const isAdmin = event.administrators.some(adminId => adminId && adminId.toString() === requesterId);
-        const isOwner = event.ownerId && event.ownerId.toString() === requesterId;
 
-        // Permission: Self-removal OR Admin/Owner removal
-        if (requesterId !== userId && !isAdmin && !isOwner) {
+        const isOwner = event.ownerId.toString() === requesterId;
+        const isAdmin = event.administrators.some(id => id.toString() === requesterId);
+
+        // Check if it's a guest of the requester
+        const isGuestPatron = kind === 'GUEST' && event.guests.some((g: any) =>
+            g._id.toString() === userId && g.addedBy.toString() === requesterId
+        );
+
+        // Permission: Self-removal OR Admin/Owner removal OR Patron removal of guest
+        if (requesterId !== userId && !isAdmin && !isOwner && !isGuestPatron) {
             return res.status(401).json({ message: 'User not authorized to remove this attendee' });
         }
 
         // 1. Remove from Event.attendees
-        event.attendees = (event.attendees as any[]).filter(id => id.toString() !== userId);
+        event.attendees = (event.attendees as any[]).filter(a => !(a.id.toString() === userId && a.kind === kind));
+
+        // 2. If it was a guest, remove from Event.guests
+        if (kind === 'GUEST') {
+            event.guests = (event.guests as any[]).filter(g => g._id.toString() !== userId);
+        }
+
         await event.save();
 
-        // 2. Remove from all Terms related to this Event
+        // 3. Remove from all Terms related to this Event
         await Term.updateMany(
             { eventId: event._id },
-            { $pull: { attendees: userId } }
+            { $pull: { attendees: { id: userId, kind: kind } } }
         );
 
-        logger.info('Attendee removed from event and terms', { eventId: event._id, removedUserId: userId, requesterId });
+        logger.info('Attendee removed from event and terms', { eventId: event._id, removedUserId: userId, kind, requesterId });
         res.json({ message: 'Attendee removed successfully' });
     } catch (error: any) {
         logger.error('Error removing attendee', { error: error.message, eventUuid: req.params.uuid, userId: (req as any).user._id });
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const addGuestToEvent = async (req: Request, res: Response) => {
+    try {
+        const { uuid } = req.params;
+        const { firstName, lastName } = req.body;
+
+        const event = await Event.findOne({ uuid });
+        if (!event) {
+            return res.status(404).json({ message: 'Event not found' });
+        }
+
+        const requesterId = (req as any).user._id;
+
+        // Create embedded guest sub-document
+        const newGuest = {
+            firstName,
+            lastName,
+            addedBy: requesterId
+        };
+
+        event.guests.push(newGuest as any);
+        const guestDoc = event.guests[event.guests.length - 1]; // Get the created guest with its _id
+
+        // Add to event attendees
+        event.attendees.push({ id: guestDoc._id, kind: 'GUEST' });
+        await event.save();
+
+        logger.info('Guest added to event', { eventId: event._id, guestId: guestDoc._id, addedBy: requesterId });
+
+        res.status(201).json(guestDoc);
+    } catch (error: any) {
+        logger.error('Error adding guest to event', { error: error.message, eventUuid: req.params.uuid, userId: (req as any).user._id });
         res.status(500).json({ message: error.message });
     }
 };

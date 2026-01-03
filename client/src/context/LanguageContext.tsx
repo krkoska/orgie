@@ -91,7 +91,7 @@ const translations: Translations = {
     'confirmDeleteTerm': { en: 'Are you sure you want to delete this term?', cs: 'Opravdu chcete smazat tento termín?' },
     'viewCards': { en: 'Card View', cs: 'Kartičky' },
     'viewMatrix': { en: 'Attendance Matrix', cs: 'Přihlašovací Matice' },
-    'addMeToMatrix': { en: 'Add Me to Attendance', cs: 'Přidat se do přihlášení' },
+    'addMeToMatrix': { en: 'Add Me', cs: 'Přidat sebe' },
     'noAttendees': { en: 'No one has signed up yet. Be the first!', cs: 'Zatím se nikdo nepřihlásil. Buďte první!' },
     'you': { en: '(You)', cs: '(Vy)' },
     'toggleAttendance': { en: 'Toggle attendance', cs: 'Přepnout účast' },
@@ -138,6 +138,10 @@ const translations: Translations = {
     'Thu': { en: 'Thu', cs: 'Čt' },
     'Fri': { en: 'Fri', cs: 'Pá' },
     'Sat': { en: 'Sat', cs: 'So' },
+    'addGuest': { en: 'Add Guest', cs: 'Přidat hosta' },
+    'guest': { en: 'Guest', cs: 'Host' },
+    'addedBy': { en: 'Added by', cs: 'Přidal' },
+    'guestAdded': { en: 'Guest added successfully', cs: 'Host byl úspěšně přidán' },
 };
 
 interface LanguageContextType {

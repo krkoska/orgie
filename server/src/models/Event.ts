@@ -17,6 +17,18 @@ export interface IRecurrence {
     monthDays?: number[]; // 1-31
 }
 
+export interface IGuest {
+    _id: mongoose.Types.ObjectId;
+    firstName: string;
+    lastName: string;
+    addedBy: mongoose.Types.ObjectId;
+}
+
+export interface IAttendee {
+    id: mongoose.Types.ObjectId;
+    kind: 'USER' | 'GUEST';
+}
+
 export interface IEvent extends Document {
     name: string;
     place?: string;
@@ -28,7 +40,8 @@ export interface IEvent extends Document {
     recurrence?: IRecurrence; // For RECURRING
     uuid: string;
     administrators: mongoose.Types.ObjectId[];
-    attendees: mongoose.Types.ObjectId[];
+    attendees: IAttendee[];
+    guests: IGuest[];
     minAttendees: number;
     maxAttendees: number;
     createdAt: Date;
@@ -87,8 +100,13 @@ const EventSchema: Schema = new Schema({
         ref: 'User'
     }],
     attendees: [{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
+        id: { type: mongoose.Schema.Types.ObjectId, required: true },
+        kind: { type: String, enum: ['USER', 'GUEST'], required: true }
+    }],
+    guests: [{
+        firstName: { type: String, required: true },
+        lastName: { type: String, required: true },
+        addedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }
     }],
     minAttendees: { type: Number, default: 0, min: 0 },
     maxAttendees: { type: Number, default: 0, min: 0 }

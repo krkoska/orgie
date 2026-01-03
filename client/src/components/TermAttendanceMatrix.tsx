@@ -3,12 +3,15 @@ import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 
-interface User {
-    _id: string;
+interface Participant {
+    id: string;
+    kind: 'USER' | 'GUEST';
     firstName: string;
     lastName: string;
     nickname?: string;
     preferNickname?: boolean;
+    addedBy?: string; // name
+    addedById?: string; // actual ID for permission checks
 }
 
 interface Term {
@@ -16,21 +19,24 @@ interface Term {
     date: string;
     startTime: string;
     endTime: string;
-    attendees: User[];
+    attendees: { id: string | any; kind: 'USER' | 'GUEST' }[];
 }
 
 interface TermAttendanceMatrixProps {
     terms: Term[];
     event: {
+        _id: string;
         minAttendees: number;
         maxAttendees: number;
-        attendees: User[];
-        ownerId?: string | User;
-        administrators?: (string | User)[];
+        attendees: { id: string | any; kind: 'USER' | 'GUEST' }[];
+        guests: { _id: string; firstName: string; lastName: string; addedBy: any }[];
+        ownerId?: string | any;
+        administrators?: (string | any)[];
     };
-    onAttendanceToggle: (termId: string) => Promise<void>;
+    onAttendanceToggle: (termId: string, userId: string, kind: 'USER' | 'GUEST') => Promise<void>;
     onAddSelf: () => Promise<void>;
-    onRemoveAttendee?: (userId: string) => Promise<void>;
+    onAddGuest?: () => void;
+    onRemoveAttendee?: (userId: string, kind: 'USER' | 'GUEST') => Promise<void>;
     showPast?: boolean;
     readOnly?: boolean;
 }
@@ -40,6 +46,7 @@ const TermAttendanceMatrix: React.FC<TermAttendanceMatrixProps> = ({
     event,
     onAttendanceToggle,
     onAddSelf,
+    onAddGuest,
     onRemoveAttendee,
     showPast = false,
     readOnly = false
@@ -137,36 +144,109 @@ const TermAttendanceMatrix: React.FC<TermAttendanceMatrixProps> = ({
         return <p style={{ color: '#666' }}>{t('noFutureTerms') || 'No upcoming terms scheduled.'}</p>;
     }
 
-    // Use event.attendees as the source for users in the matrix
-    // Combine with anyone who might be attending a term but isn't in event.attendees (shouldn't happen with our new backend, but for safety)
-    const allUsersMap = new Map<string, User>();
+    // Unified list of participants for rows
+    const participants: Participant[] = [];
+    const seenMap = new Map<string, boolean>();
 
-    // Add event attendees first
-    event.attendees.forEach(user => {
-        allUsersMap.set(user._id, user);
+    // 1. Process overall event attendees
+    event.attendees.forEach(a => {
+        if (a.kind === 'USER' && typeof a.id === 'object' && a.id !== null) {
+            const u = a.id;
+            if (!seenMap.has(u._id)) {
+                participants.push({
+                    id: u._id,
+                    kind: 'USER',
+                    firstName: u.firstName,
+                    lastName: u.lastName,
+                    nickname: u.nickname,
+                    preferNickname: u.preferNickname
+                });
+                seenMap.set(u._id, true);
+            }
+        }
     });
 
-    // Add term attendees (just in case)
+    // 2. Process all term attendees for the current view (active or archived)
     filteredTerms.forEach(term => {
-        term.attendees.forEach(attendee => {
-            if (!allUsersMap.has(attendee._id)) {
-                allUsersMap.set(attendee._id, attendee);
+        term.attendees.forEach(a => {
+            if (a.kind === 'USER' && typeof a.id === 'object' && a.id !== null) {
+                const u = a.id;
+                if (!seenMap.has(u._id)) {
+                    participants.push({
+                        id: u._id,
+                        kind: 'USER',
+                        firstName: u.firstName,
+                        lastName: u.lastName,
+                        nickname: u.nickname,
+                        preferNickname: u.preferNickname
+                    });
+                    seenMap.set(u._id, true);
+                }
+            } else if (a.kind === 'GUEST') {
+                const guestId = (typeof a.id === 'string')
+                    ? a.id
+                    : (a.id && typeof a.id === 'object' ? (a.id as any)._id : null);
+
+                if (guestId && !seenMap.has(guestId)) {
+                    const guest = event.guests.find(g => g._id === guestId);
+                    if (guest) {
+                        const patron = guest.addedBy;
+                        const patronName = typeof patron === 'object' && patron !== null
+                            ? (patron.preferNickname && patron.nickname ? patron.nickname : `${patron.firstName} ${patron.lastName}`)
+                            : '';
+                        const patronId = typeof patron === 'object' && patron !== null ? patron._id : patron;
+
+                        participants.push({
+                            id: guest._id,
+                            kind: 'GUEST',
+                            firstName: guest.firstName,
+                            lastName: guest.lastName,
+                            addedBy: patronName,
+                            addedById: patronId
+                        });
+                        seenMap.set(guest._id, true);
+                    }
+                }
             }
         });
     });
 
-    const users = Array.from(allUsersMap.values());
-    const currentUserInMatrix = user && users.some(u => u._id === user._id);
+    // 3. Process guests from event.guests registry (for those not in any term yet)
+    event.guests.forEach(g => {
+        if (!seenMap.has(g._id)) {
+            const patron = g.addedBy;
+            const patronName = typeof patron === 'object' && patron !== null
+                ? (patron.preferNickname && patron.nickname ? patron.nickname : `${patron.firstName} ${patron.lastName}`)
+                : '';
+            const patronId = typeof patron === 'object' && patron !== null ? patron._id : patron;
+
+            participants.push({
+                id: g._id,
+                kind: 'GUEST',
+                firstName: g.firstName,
+                lastName: g.lastName,
+                addedBy: patronName,
+                addedById: patronId
+            });
+            seenMap.set(g._id, true);
+        }
+    });
+
+    const currentUserInMatrix = user && participants.some(p => p.id === user._id && p.kind === 'USER');
 
     // Check if current user is admin or owner
     const isOwner = event.ownerId && user && (typeof event.ownerId === 'string' ? event.ownerId === user._id : (event.ownerId as any)._id === user._id);
     const isAdmin = event.administrators && user && event.administrators.some(admin => (typeof admin === 'string' ? admin === user._id : (admin as any)._id === user._id));
-    const canManageAttendees = isOwner || isAdmin;
+    const canManageEvent = isOwner || isAdmin;
 
-    // Check if user is attending a specific term
-    const isAttending = (termId: string, userId: string): boolean => {
+    // Check if participant is attending a specific term
+    const isParticipantAttending = (termId: string, participantId: string, kind: 'USER' | 'GUEST'): boolean => {
         const term = filteredTerms.find(t => t._id === termId);
-        return term ? term.attendees.some(a => a._id === userId) : false;
+        if (!term) return false;
+        return term.attendees.some(a => {
+            const id = typeof a.id === 'object' && a.id !== null ? a.id._id : a.id;
+            return id === participantId && a.kind === kind;
+        });
     };
 
     // Check if term meets minimum attendees
@@ -181,11 +261,18 @@ const TermAttendanceMatrix: React.FC<TermAttendanceMatrixProps> = ({
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
         >
-            {user && !currentUserInMatrix && !readOnly && (
-                <div style={{ marginBottom: '1rem' }}>
-                    <button onClick={onAddSelf} className="btn-primary">
-                        + {t('addMeToMatrix') || 'Add Me to Attendance'}
-                    </button>
+            {user && !readOnly && (
+                <div style={{ marginBottom: '1rem', display: 'flex', gap: '0.75rem' }}>
+                    {!currentUserInMatrix && (
+                        <button onClick={onAddSelf} className="btn-primary">
+                            + {t('addMeToMatrix') || 'Add Me to Attendance'}
+                        </button>
+                    )}
+                    {onAddGuest && (
+                        <button onClick={onAddGuest} className="btn-primary">
+                            + {t('addGuest') || 'Add Guest'}
+                        </button>
+                    )}
                 </div>
             )}
 
@@ -250,8 +337,8 @@ const TermAttendanceMatrix: React.FC<TermAttendanceMatrixProps> = ({
                                             <div className="term-date" style={{ fontWeight: 600 }}>
                                                 {new Date(term.date).toLocaleDateString()}
                                             </div>
-                                            <div className="term-count" style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
-                                                {term.attendees.length} {t('attendees') || 'attendees'}
+                                            <div className="term-count" style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
+                                                {term.attendees.length} / {event.maxAttendees || '∞'}
                                             </div>
                                         </div>
                                     </th>
@@ -260,29 +347,43 @@ const TermAttendanceMatrix: React.FC<TermAttendanceMatrixProps> = ({
                         </tr>
                     </thead>
                     <tbody>
-                        {users.length === 0 ? (
+                        {participants.length === 0 ? (
                             <tr>
                                 <td colSpan={visibleTerms.length + 1} style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>
                                     {t('noAttendees') || 'No one has signed up yet. Be the first!'}
                                 </td>
                             </tr>
                         ) : (
-                            users.map(attendee => {
-                                const isCurrentUser = user && attendee._id === user._id;
+                            participants.map(p => {
+                                const isCurrentUser = user && p.id === user._id && p.kind === 'USER';
+                                const isGuest = p.kind === 'GUEST';
+                                // Robust patron check using addedById
+                                const isPatron = isGuest && !!p.addedById && user && p.addedById === user._id;
+
+                                const canToggleRow = canManageEvent || isCurrentUser || isPatron;
+
                                 return (
-                                    <tr key={attendee._id} className={isCurrentUser ? 'current-user-row' : ''}>
+                                    <tr
+                                        key={`${p.kind}-${p.id}`}
+                                        className={`${isCurrentUser ? 'current-user-row' : ''} ${isGuest ? 'guest-row' : ''}`}
+                                    >
                                         <td className="sticky-col user-name user-name-cell">
                                             <div className="user-name-container">
                                                 <span className="user-name-text">
-                                                    {attendee.preferNickname && attendee.nickname
-                                                        ? attendee.nickname
-                                                        : `${attendee.firstName} ${attendee.lastName}`}
+                                                    {p.preferNickname && p.nickname
+                                                        ? p.nickname
+                                                        : `${p.firstName} ${p.lastName}`}
                                                     {isCurrentUser && <span className="you-badge">{t('you')}</span>}
+                                                    {isGuest && (
+                                                        <span className="guest-badge" title={p.addedBy ? `${t('addedBy')}: ${p.addedBy}` : ''}>
+                                                            {t('guest')}
+                                                        </span>
+                                                    )}
                                                 </span>
                                                 <div className="user-actions">
-                                                    {!readOnly && onRemoveAttendee && (isCurrentUser || canManageAttendees) && (
+                                                    {!readOnly && onRemoveAttendee && (isCurrentUser || canManageEvent || isPatron) && (
                                                         <button
-                                                            onClick={() => onRemoveAttendee(attendee._id)}
+                                                            onClick={() => onRemoveAttendee(p.id, p.kind)}
                                                             className="icon-btn-delete"
                                                             title={t('removeAttendee')}
                                                         >
@@ -293,9 +394,9 @@ const TermAttendanceMatrix: React.FC<TermAttendanceMatrixProps> = ({
                                             </div>
                                         </td>
                                         {visibleTerms.map(term => {
-                                            const attending = isAttending(term._id, attendee._id);
+                                            const attending = isParticipantAttending(term._id, p.id, p.kind);
                                             const isFull = event.maxAttendees > 0 && term.attendees.length >= event.maxAttendees;
-                                            const canToggle = !readOnly && isCurrentUser && (attending || !isFull);
+                                            const canToggle = !readOnly && canToggleRow && (attending || !isFull);
 
                                             return (
                                                 <td
@@ -312,8 +413,8 @@ const TermAttendanceMatrix: React.FC<TermAttendanceMatrixProps> = ({
                                                         type="checkbox"
                                                         checked={attending}
                                                         disabled={!canToggle}
-                                                        onChange={() => canToggle && onAttendanceToggle(term._id)}
-                                                        title={readOnly ? '' : (isCurrentUser ? (attending ? t('leave') : (isFull ? t('termFull') || 'Term is full' : t('signUp'))) : '')}
+                                                        onChange={() => canToggle && onAttendanceToggle(term._id, p.id, p.kind)}
+                                                        title={readOnly ? '' : (canToggleRow ? (attending ? t('leave') : (isFull ? t('termFull') || 'Term is full' : t('signUp'))) : '')}
                                                         style={{ cursor: canToggle ? 'pointer' : 'default' }}
                                                     />
                                                 </td>

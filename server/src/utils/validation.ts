@@ -28,3 +28,8 @@ export const updateProfileSchema = z.object({
         .regex(/[0-9]/, 'Password must contain at least one number')
         .optional()
 });
+
+export const addGuestSchema = z.object({
+    firstName: z.string().min(1, 'First name is required'),
+    lastName: z.string().min(1, 'Last name is required')
+});

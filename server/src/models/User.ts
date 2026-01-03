@@ -7,8 +7,8 @@ export enum UserRole {
 }
 
 export interface IUser extends Document {
-    email: string;
-    passwordHash: string;
+    email?: string;
+    passwordHash?: string;
     firstName?: string;
     lastName?: string;
     nickname?: string;
@@ -23,8 +23,7 @@ export interface IUser extends Document {
 const UserSchema: Schema = new Schema({
     email: {
         type: String,
-        required: true,
-        unique: true,
+        required: false,
         match: [
             /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/,
             'Please add a valid email'
@@ -32,7 +31,7 @@ const UserSchema: Schema = new Schema({
     },
     passwordHash: {
         type: String,
-        required: true
+        required: false
     },
     firstName: String,
     lastName: String,
@@ -51,9 +50,17 @@ const UserSchema: Schema = new Schema({
     timestamps: true
 });
 
+UserSchema.index(
+    { email: 1 },
+    {
+        unique: true,
+        partialFilterExpression: { email: { $type: "string" } }
+    }
+);
+
 // Middleware to hash password before saving
 UserSchema.pre<IUser>('save', async function () {
-    if (!this.isModified('passwordHash')) {
+    if (!this.passwordHash || !this.isModified('passwordHash')) {
         return;
     }
     const salt = await bcrypt.genSalt(10);
@@ -61,6 +68,7 @@ UserSchema.pre<IUser>('save', async function () {
 });
 
 UserSchema.methods.matchPassword = async function (enteredPassword: string): Promise<boolean> {
+    if (!this.passwordHash) return false;
     return await bcrypt.compare(enteredPassword, this.passwordHash);
 };
 

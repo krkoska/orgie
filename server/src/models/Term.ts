@@ -5,7 +5,7 @@ export interface ITerm extends Document {
     date: Date;
     startTime: string;
     endTime: string;
-    attendees: mongoose.Types.ObjectId[];
+    attendees: { id: mongoose.Types.ObjectId, kind: 'USER' | 'GUEST' }[];
 }
 
 const termSchema = new mongoose.Schema({
@@ -13,7 +13,10 @@ const termSchema = new mongoose.Schema({
     date: { type: Date, required: true },
     startTime: { type: String, required: true },
     endTime: { type: String, required: true },
-    attendees: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
+    attendees: [{
+        id: { type: mongoose.Schema.Types.ObjectId, required: true },
+        kind: { type: String, enum: ['USER', 'GUEST'], required: true }
+    }]
 });
 
 // Compound index for quick lookup of terms by event and date

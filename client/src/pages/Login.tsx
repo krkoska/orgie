@@ -37,12 +37,28 @@ const Login: React.FC = () => {
             {error && <p className="error">{error}</p>}
             <form onSubmit={handleSubmit}>
                 <div className="form-group">
-                    <label>{t('email')}</label>
-                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                    <label htmlFor="email">{t('email')}</label>
+                    <input
+                        type="email"
+                        id="email"
+                        name="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        autoComplete="username"
+                        required
+                    />
                 </div>
                 <div className="form-group">
-                    <label>{t('passwordLabel')}</label>
-                    <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                    <label htmlFor="password">{t('passwordLabel')}</label>
+                    <input
+                        type="password"
+                        id="password"
+                        name="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        autoComplete="current-password"
+                        required
+                    />
                 </div>
                 <button type="submit">{t('login')}</button>
             </form>

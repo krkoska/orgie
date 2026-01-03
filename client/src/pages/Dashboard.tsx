@@ -28,7 +28,8 @@ interface Event {
         email: string;
     } | string;
     administrators: User[] | string[];
-    attendees?: User[] | string[];
+    attendees?: { id: string | User; kind: 'USER' | 'GUEST' }[];
+    guests?: { _id: string; firstName: string; lastName: string; addedBy: any }[];
     minAttendees: number;
     maxAttendees: number;
 }

@@ -19,6 +19,18 @@ interface User {
     email?: string;
 }
 
+interface Guest {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    addedBy: any; // populated info
+}
+
+interface Attendee {
+    id: User | string;
+    kind: 'USER' | 'GUEST';
+}
+
 interface Event {
     _id: string;
     uuid: string;
@@ -34,7 +46,8 @@ interface Event {
     };
     ownerId: User;
     administrators: User[];
-    attendees: User[];
+    attendees: Attendee[];
+    guests: Guest[];
     minAttendees: number;
     maxAttendees: number;
 }
@@ -45,7 +58,7 @@ interface Term {
     date: string;
     startTime: string;
     endTime: string;
-    attendees: User[];
+    attendees: Attendee[];
 }
 
 const EventDetailPage: React.FC = () => {
@@ -87,7 +100,12 @@ const EventDetailPage: React.FC = () => {
 
     // Delete Attendee Modal State
     const [isDeleteAttendeeModalOpen, setIsDeleteAttendeeModalOpen] = useState(false);
-    const [attendeeToRemove, setAttendeeToRemove] = useState<string | null>(null);
+    const [attendeeToRemove, setAttendeeToRemove] = useState<{ id: string, kind: 'USER' | 'GUEST' } | null>(null);
+
+    // Add Guest Modal State
+    const [isAddGuestModalOpen, setIsAddGuestModalOpen] = useState(false);
+    const [guestFormData, setGuestFormData] = useState({ firstName: '', lastName: '' });
+    const [selectedTermForGuest, setSelectedTermForGuest] = useState<string | null>(null);
 
     const fetchEventDetails = async () => {
         try {
@@ -190,9 +208,9 @@ const EventDetailPage: React.FC = () => {
         }
     };
 
-    const handleAttendanceToggle = async (termId: string) => {
+    const handleAttendanceToggle = async (termId: string, userId?: string, kind: 'USER' | 'GUEST' = 'USER') => {
         try {
-            await api.post(`/events/terms/${termId}/attendance`);
+            await api.post(`/events/terms/${termId}/attendance`, { userId, kind });
             fetchEventDetails(); // Refresh to get updated attendees
             showToast(t('attendanceUpdated') || 'Attendance updated', 'success');
         } catch (error: any) {
@@ -203,7 +221,7 @@ const EventDetailPage: React.FC = () => {
     const handleToggleEventAttendance = async () => {
         if (!event) return;
         try {
-            await api.post(`/events/${event.uuid}/attendance`);
+            await api.post(`/events/${event.uuid}/attendance`, {});
             fetchEventDetails();
             showToast(t('attendanceUpdated') || 'Attendance updated', 'success');
         } catch (error: any) {
@@ -211,21 +229,46 @@ const EventDetailPage: React.FC = () => {
         }
     };
 
-    const handleRequestRemoveAttendee = async (userId: string) => {
-        setAttendeeToRemove(userId);
+    const handleRequestRemoveAttendee = async (id: string, kind: 'USER' | 'GUEST' = 'USER') => {
+        setAttendeeToRemove({ id, kind });
         setIsDeleteAttendeeModalOpen(true);
     };
 
     const confirmDeleteAttendee = async () => {
         if (!event || !attendeeToRemove) return;
         try {
-            await api.delete(`/events/uuid/${event.uuid}/attendees/${attendeeToRemove}`);
+            await api.delete(`/events/uuid/${event.uuid}/attendees/${attendeeToRemove.id}?kind=${attendeeToRemove.kind}`);
             setIsDeleteAttendeeModalOpen(false);
             setAttendeeToRemove(null);
             fetchEventDetails();
             showToast(t('attendeeRemoved') || 'Attendee removed successfully', 'success');
         } catch (error: any) {
             showToast(error.response?.data?.message || 'Failed to remove attendee', 'error');
+        }
+    };
+
+    const handleAddGuest = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!event || !guestFormData.firstName || !guestFormData.lastName) return;
+
+        try {
+            const { data: newGuest } = await api.post(`/events/uuid/${event.uuid}/guests`, guestFormData);
+
+            // If a term was pre-selected, sign them up for it immediately
+            if (selectedTermForGuest) {
+                await api.post(`/events/terms/${selectedTermForGuest}/attendance`, {
+                    userId: newGuest._id,
+                    kind: 'GUEST'
+                });
+            }
+
+            setIsAddGuestModalOpen(false);
+            setSelectedTermForGuest(null);
+            setGuestFormData({ firstName: '', lastName: '' });
+            fetchEventDetails();
+            showToast(t('guestAdded') || 'Guest added successfully', 'success');
+        } catch (error: any) {
+            showToast(error.response?.data?.message || 'Failed to add guest', 'error');
         }
     };
 
@@ -295,7 +338,7 @@ const EventDetailPage: React.FC = () => {
     const daysMap = [t('Sun'), t('Mon'), t('Tue'), t('Wed'), t('Thu'), t('Fri'), t('Sat')];
 
     const renderTermCard = (term: Term, isArchived: boolean = false) => {
-        const isAttendingTerm = user && term.attendees.some(a => a._id === user._id);
+        const isAttendingTerm = user && term.attendees.some(a => a.kind === 'USER' && (typeof a.id === 'string' ? a.id === user._id : a.id._id === user._id));
         const isFull = event && event.maxAttendees > 0 && term.attendees.length >= event.maxAttendees;
         const canJoin = !isArchived && user && !isAttendingTerm && !isFull;
         const canLeave = !isArchived && user && isAttendingTerm;
@@ -349,11 +392,21 @@ const EventDetailPage: React.FC = () => {
                 </p>
                 {isArchived && term.attendees.length > 0 && (
                     <div style={{ marginTop: '10px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                        {term.attendees.map(a => (
-                            <span key={a._id} style={{ fontSize: '11px', background: '#f3f4f6', padding: '2px 6px', borderRadius: '4px', color: '#4b5563' }}>
-                                {a.preferNickname && a.nickname ? a.nickname : `${a.firstName} ${a.lastName}`}
-                            </span>
-                        ))}
+                        {term.attendees.map((a, idx) => {
+                            let name = 'Unknown';
+                            if (a.kind === 'USER' && typeof a.id === 'object' && a.id !== null) {
+                                name = (a.id as User).preferNickname && (a.id as User).nickname ? (a.id as User).nickname! : `${(a.id as User).firstName} ${(a.id as User).lastName}`;
+                            } else if (a.kind === 'GUEST' && a.id) {
+                                const guestId = typeof a.id === 'string' ? a.id : (a.id as any)._id;
+                                const guest = event?.guests.find(g => g._id === guestId);
+                                if (guest) name = `${guest.firstName} ${guest.lastName}`;
+                            }
+                            return (
+                                <span key={idx} style={{ fontSize: '11px', background: '#f3f4f6', padding: '2px 6px', borderRadius: '4px', color: '#4b5563' }}>
+                                    {name}
+                                </span>
+                            );
+                        })}
                     </div>
                 )}
             </div>
@@ -519,6 +572,9 @@ const EventDetailPage: React.FC = () => {
                         onAttendanceToggle={handleAttendanceToggle}
                         onAddSelf={handleToggleEventAttendance}
                         onRemoveAttendee={handleRequestRemoveAttendee}
+                        onAddGuest={() => {
+                            setIsAddGuestModalOpen(true);
+                        }}
                     />
                 )}
             </div>
@@ -735,6 +791,40 @@ const EventDetailPage: React.FC = () => {
                 title={t('confirmRemoveAttendee')}
             >
                 <p>{t('confirmRemoveAttendeeMsg')}</p>
+            </Modal>
+            {/* Add Guest Modal */}
+            <Modal
+                isOpen={isAddGuestModalOpen}
+                onClose={() => setIsAddGuestModalOpen(false)}
+                onConfirm={() => { }} // Not used because we have a form
+                title={t('addGuest') || 'Add Guest'}
+                hideFooter={true}
+            >
+                <form onSubmit={handleAddGuest}>
+                    <div className="form-group">
+                        <label>{t('firstName')}</label>
+                        <input
+                            type="text"
+                            value={guestFormData.firstName}
+                            onChange={(e) => setGuestFormData({ ...guestFormData, firstName: e.target.value })}
+                            required
+                        />
+                    </div>
+                    <div className="form-group">
+                        <label>{t('lastName')}</label>
+                        <input
+                            type="text"
+                            value={guestFormData.lastName}
+                            onChange={(e) => setGuestFormData({ ...guestFormData, lastName: e.target.value })}
+                            required
+                        />
+                    </div>
+                    <div className="modal-footer" style={{ marginTop: '1.5rem', justifyContent: 'flex-start' }}>
+                        <button type="submit" className="btn-primary">
+                            {t('addGuest') || 'Add Guest'}
+                        </button>
+                    </div>
+                </form>
             </Modal>
         </div>
     );
