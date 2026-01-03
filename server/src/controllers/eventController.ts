@@ -89,13 +89,13 @@ export const getDashboardEvents = async (req: Request, res: Response) => {
             .populate('administrators', 'firstName lastName nickname preferNickname email');
 
         // Attending: user is in attendees of any Term related to the Event OR in Event.attendees
-        const attendingTerms = await Term.find({ attendees: userId }).select('eventId');
+        const attendingTerms = await Term.find({ "attendees.id": userId }).select('eventId');
         const eventIdsFromTerms = attendingTerms.map(t => t.eventId);
 
         const attending = await Event.find({
             $or: [
                 { _id: { $in: eventIdsFromTerms } },
-                { attendees: userId }
+                { "attendees.id": userId }
             ]
         }).populate('ownerId', 'firstName lastName nickname preferNickname email')
             .populate('administrators', 'firstName lastName nickname preferNickname email');
