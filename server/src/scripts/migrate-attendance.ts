@@ -2,8 +2,11 @@ import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import path from 'path';
 
-// Force load env from server directory
-dotenv.config({ path: path.join(__dirname, '../../.env') });
+// Load environment variables from .env file if it exists (primarily for local dev)
+// In production (Azure), variables are usually already in process.env
+dotenv.config(); // Try default location
+dotenv.config({ path: path.join(process.cwd(), '.env') });
+dotenv.config({ path: path.join(process.cwd(), '..', '.env') });
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/orgie';
 
