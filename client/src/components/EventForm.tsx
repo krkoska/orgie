@@ -30,6 +30,7 @@ export interface EventFormData {
     administrators: string[];
     minAttendees: number;
     maxAttendees: number;
+    activityType?: 'TEAM_SPORT';
 }
 
 interface EventFormProps {
@@ -52,6 +53,7 @@ const EventForm: React.FC<EventFormProps> = ({ initialData, onSubmit, submitButt
     const [administrators, setAdministrators] = useState<User[]>(initialData?.administrators || []);
     const [minAttendees, setMinAttendees] = useState(initialData?.minAttendees || 0);
     const [maxAttendees, setMaxAttendees] = useState(initialData?.maxAttendees || 0);
+    const [activityType, setActivityType] = useState<'TEAM_SPORT' | undefined>(initialData?.activityType);
 
     // Recurrence State
     const [frequency, setFrequency] = useState<RecurrenceFrequency>(initialData?.recurrence?.frequency || RecurrenceFrequency.DAILY);
@@ -74,7 +76,8 @@ const EventForm: React.FC<EventFormProps> = ({ initialData, onSubmit, submitButt
             endTime,
             administrators: administrators.map(u => u._id),
             minAttendees,
-            maxAttendees
+            maxAttendees,
+            activityType
         };
 
         if (type === EventType.ONE_TIME) {
@@ -104,6 +107,18 @@ const EventForm: React.FC<EventFormProps> = ({ initialData, onSubmit, submitButt
             <div className="form-group">
                 <label>{t('place')}</label>
                 <input type="text" value={place} onChange={(e) => setPlace(e.target.value)} maxLength={50} />
+            </div>
+
+            <div className="form-group">
+                <label>{t('activityType') || 'Activity Type'}</label>
+                <select
+                    className="custom-select"
+                    value={activityType || ''}
+                    onChange={(e) => setActivityType(e.target.value ? e.target.value as 'TEAM_SPORT' : undefined)}
+                >
+                    <option value="">{t('none') || 'None'}</option>
+                    <option value="TEAM_SPORT">{t('teamSport') || 'Team Sport'}</option>
+                </select>
             </div>
 
             <div className="form-row" style={{ display: 'flex', gap: '1rem' }}>

@@ -8,7 +8,8 @@ import Modal from '../components/Modal';
 
 import EventForm, { EventType, RecurrenceFrequency, type EventFormData } from '../components/EventForm';
 import TermAttendanceMatrix from '../components/TermAttendanceMatrix';
-import { Edit, Calendar, Trash2, Grid, Table, UserPlus, UserCheck } from 'lucide-react';
+import TermStatsModal from '../components/TermStatsModal';
+import { Edit, Calendar, Trash2, Grid, Table, UserPlus, UserCheck, Trophy, ChevronUp, ChevronDown } from 'lucide-react';
 
 interface User {
     _id: string;
@@ -46,6 +47,7 @@ interface Event {
     };
     ownerId: User;
     administrators: User[];
+    activityType?: 'TEAM_SPORT';
     attendees: Attendee[];
     guests: Guest[];
     minAttendees: number;
@@ -59,6 +61,15 @@ interface Term {
     startTime: string;
     endTime: string;
     attendees: Attendee[];
+    statistics?: {
+        teams: {
+            name: string;
+            members: { id: string, kind: 'USER' | 'GUEST' }[];
+            wins: number;
+            draws: number;
+            losses: number;
+        }[];
+    };
 }
 
 const EventDetailPage: React.FC = () => {
@@ -78,6 +89,8 @@ const EventDetailPage: React.FC = () => {
     const [viewMode, setViewMode] = useState<'cards' | 'matrix'>('matrix');
     const [archivedViewMode, setArchivedViewMode] = useState<'cards' | 'matrix'>('matrix');
     const [visibleCardCount, setVisibleCardCount] = useState(20);
+    const [showStats, setShowStats] = useState(false);
+    const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' }>({ key: 'attendance', direction: 'desc' });
 
     // Edit Modal State
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -94,8 +107,9 @@ const EventDetailPage: React.FC = () => {
 
     // Bulk Delete Archive Modal State
     const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
-    const [bulkDeleteStart, setBulkDeleteStart] = useState('');
-    const [bulkDeleteEnd, setBulkDeleteEnd] = useState('');
+    const [bulkStart, setBulkStart] = useState('');
+    const [bulkEnd, setBulkEnd] = useState('');
+    const [statsTerm, setStatsTerm] = useState<Term | null>(null);
     const [isDeletingBulk, setIsDeletingBulk] = useState(false);
 
     // Delete Attendee Modal State
@@ -272,6 +286,19 @@ const EventDetailPage: React.FC = () => {
         }
     };
 
+    const fetchArchivedTerms = async () => {
+        if (!event) return;
+        setLoadingArchive(true);
+        try {
+            const { data } = await api.get(`/events/uuid/${uuid}/archived`);
+            setArchivedTerms(data);
+        } catch (err: any) {
+            showToast(err.response?.data?.message || 'Failed to load archived terms', 'error');
+        } finally {
+            setLoadingArchive(false);
+        }
+    };
+
     const handleFetchArchivedTerms = async () => {
         if (!event) return;
         if (showArchive) {
@@ -284,17 +311,124 @@ const EventDetailPage: React.FC = () => {
             return;
         }
 
-        setLoadingArchive(true);
-        try {
-            const { data } = await api.get(`/events/uuid/${uuid}/archived`);
-            setArchivedTerms(data);
-            setShowArchive(true);
-        } catch (err: any) {
-            showToast(err.response?.data?.message || 'Failed to load archived terms', 'error');
-        } finally {
-            setLoadingArchive(false);
-        }
+        await fetchArchivedTerms();
+        setShowArchive(true);
     };
+
+    const handleFetchStats = async () => {
+        if (!event) return;
+        if (showStats) {
+            setShowStats(false);
+            return;
+        }
+        if (archivedTerms.length === 0) {
+            await fetchArchivedTerms();
+        }
+        setShowStats(true);
+    };
+
+    const handleSort = (key: string) => {
+        setSortConfig(prev => ({
+            key,
+            direction: prev.key === key && prev.direction === 'desc' ? 'asc' : 'desc'
+        }));
+    };
+
+    const globalStats = React.useMemo(() => {
+        if (!archivedTerms.length) return [];
+
+        const statsMap = new Map<string, {
+            id: string;
+            kind: 'USER' | 'GUEST';
+            name: string;
+            attendance: number;
+            wins: number;
+            draws: number;
+            losses: number;
+            totalGames: number;
+        }>();
+
+        const totalTerms = archivedTerms.length;
+
+        archivedTerms.forEach(term => {
+            // Count attendance
+            term.attendees.forEach(att => {
+                const id = typeof att.id === 'string' ? att.id : (att.id as any)._id;
+                const key = `${att.kind}-${id}`;
+                if (!statsMap.has(key)) {
+                    let name = 'Unknown';
+                    if (att.kind === 'USER' && typeof att.id === 'object' && att.id !== null) {
+                        name = (att.id as User).preferNickname && (att.id as User).nickname ? (att.id as User).nickname! : `${(att.id as User).firstName} ${(att.id as User).lastName}`;
+                    } else if (att.kind === 'GUEST' && att.id) {
+                        const guestId = typeof att.id === 'string' ? att.id : (att.id as any)._id;
+                        const guest = event?.guests.find(g => g._id === guestId);
+                        if (guest) name = `${guest.firstName} ${guest.lastName}`;
+                    }
+                    statsMap.set(key, {
+                        id,
+                        kind: att.kind,
+                        name,
+                        attendance: 0,
+                        wins: 0,
+                        draws: 0,
+                        losses: 0,
+                        totalGames: 0
+                    });
+                }
+                statsMap.get(key)!.attendance += 1;
+            });
+
+            // Count match results
+            if (term.statistics?.teams) {
+                term.statistics.teams.forEach(team => {
+                    team.members.forEach(member => {
+                        const key = `${member.kind}-${member.id}`;
+                        const stats = statsMap.get(key);
+                        if (stats) {
+                            stats.wins += (team.wins || 0);
+                            stats.draws += (team.draws || 0);
+                            stats.losses += (team.losses || 0);
+                            stats.totalGames += ((team.wins || 0) + (team.draws || 0) + (team.losses || 0));
+                        }
+                    });
+                });
+            }
+        });
+
+        return Array.from(statsMap.values()).map(s => ({
+            ...s,
+            attendancePct: (s.attendance / totalTerms) * 100,
+            winPct: s.totalGames > 0 ? (s.wins / s.totalGames) * 100 : 0,
+            lossPct: s.totalGames > 0 ? (s.losses / s.totalGames) * 100 : 0
+        })).sort((a: any, b: any) => {
+            if (a[sortConfig.key] < b[sortConfig.key]) {
+                return sortConfig.direction === 'asc' ? -1 : 1;
+            }
+            if (a[sortConfig.key] > b[sortConfig.key]) {
+                return sortConfig.direction === 'asc' ? 1 : -1;
+            }
+            return 0;
+        });
+    }, [archivedTerms, event, sortConfig]);
+
+    const statsHighlights = React.useMemo(() => {
+        if (!globalStats.length) return { maxAttendance: -1, maxWinPct: -1, maxLossPct: -1, maxWins: -1, maxLosses: -1 };
+
+        // Only consider those who actually played at least one game for win/loss highlights
+        const playedStats = globalStats.filter(s => s.totalGames > 0);
+
+        return {
+            maxAttendance: Math.max(...globalStats.map(s => s.attendance)),
+            maxWins: playedStats.length > 0 ? Math.max(...playedStats.map(s => s.wins)) : -1,
+            maxLosses: playedStats.length > 0 ? Math.max(...playedStats.map(s => s.losses)) : -1,
+            maxWinPct: playedStats.length > 0 ? Math.max(...playedStats.map(s => s.winPct)) : -1,
+            maxLossPct: playedStats.length > 0 ? Math.max(...playedStats.map(s => s.lossPct)) : -1
+        };
+    }, [globalStats]);
+
+    const filledStatsCount = React.useMemo(() => {
+        return archivedTerms.filter(t => t.statistics?.teams && t.statistics.teams.length > 0).length;
+    }, [archivedTerms]);
 
     const handleBulkDeleteArchived = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -302,7 +436,7 @@ const EventDetailPage: React.FC = () => {
 
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        const endDate = new Date(bulkDeleteEnd);
+        const endDate = new Date(bulkEnd);
         endDate.setHours(0, 0, 0, 0);
 
         if (endDate >= today) {
@@ -314,12 +448,12 @@ const EventDetailPage: React.FC = () => {
         setIsDeletingBulk(true);
         try {
             const { data } = await api.delete(`/events/uuid/${uuid}/archived`, {
-                data: { startDate: bulkDeleteStart, endDate: bulkDeleteEnd }
+                data: { startDate: bulkStart, endDate: bulkEnd }
             });
             showToast(data.message, 'success');
             setIsBulkDeleteModalOpen(false);
-            setBulkDeleteStart('');
-            setBulkDeleteEnd('');
+            setBulkStart('');
+            setBulkEnd('');
 
             // Refresh archive
             const { data: newData } = await api.get(`/events/uuid/${uuid}/archived`);
@@ -340,8 +474,8 @@ const EventDetailPage: React.FC = () => {
     const renderTermCard = (term: Term, isArchived: boolean = false) => {
         const isAttendingTerm = user && term.attendees.some(a => a.kind === 'USER' && (typeof a.id === 'string' ? a.id === user._id : a.id._id === user._id));
         const isFull = event && event.maxAttendees > 0 && term.attendees.length >= event.maxAttendees;
-        const canJoin = !isArchived && user && !isAttendingTerm && !isFull;
-        const canLeave = !isArchived && user && isAttendingTerm;
+        const canJoin = (!isArchived || canManage) && user && !isAttendingTerm && !isFull;
+        const canLeave = (!isArchived || canManage) && user && isAttendingTerm;
 
         return (
             <div key={term._id} className={`group-card ${isArchived ? 'archived' : ''}`} style={isArchived ? { opacity: 0.8, borderLeft: '4px solid #9ca3af' } : {}}>
@@ -350,7 +484,17 @@ const EventDetailPage: React.FC = () => {
                         {new Date(term.date).toLocaleDateString()}
                     </h4>
                     <div className="card-actions" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                        {!isArchived && user && (
+                        {isArchived && (event?.activityType === 'TEAM_SPORT' || (event as any).activityType === 'TEAM_SPORT') && canManage && (
+                            <button
+                                onClick={() => setStatsTerm(term)}
+                                className="icon-btn stats-btn"
+                                title={t('statistics')}
+                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: term.statistics?.teams && term.statistics.teams.length > 0 ? '#10b981' : '#f59e0b', padding: '4px' }}
+                            >
+                                <Trophy size={18} />
+                            </button>
+                        )}
+                        {(!isArchived || canManage) && user && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                                 {isFull && !isAttendingTerm && (
                                     <span style={{ fontSize: '12px', color: '#ef4444', fontWeight: 600 }}>{t('termFull') || 'Full'}</span>
@@ -426,7 +570,14 @@ const EventDetailPage: React.FC = () => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
                         <h1 style={{ margin: 0, marginBottom: '0.5rem' }}>{event.name}</h1>
-                        <p style={{ color: '#666', margin: 0 }}>
+                        {event.activityType && (
+                            <div style={{ marginBottom: '0.5rem' }}>
+                                <span style={{ background: '#f59e0b', color: 'white', fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: '10px', textTransform: 'uppercase' }}>
+                                    {t('teamSport') || 'Team Sport'}
+                                </span>
+                            </div>
+                        )}
+                        <p style={{ margin: 0, color: '#666', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             {event.type === 'ONE_TIME' ? t('oneTime') : t('recurring')} • {event.place}
                         </p>
                     </div>
@@ -579,12 +730,148 @@ const EventDetailPage: React.FC = () => {
                 )}
             </div>
 
+            {/* Global Statistics Section */}
+            <div className="dashboard" style={{ marginTop: '1rem', borderTop: '1px solid #e5e7eb', paddingTop: '2rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+                    <h2 style={{ fontSize: '1.5rem', fontWeight: 600, color: '#1f2937', margin: 0 }}>
+                        {t('statistics')}{' '}
+                        {showStats && (
+                            <span
+                                title={t('statsTooltip').replace('{filled}', filledStatsCount.toString()).replace('{total}', archivedTerms.length.toString())}
+                                style={{ cursor: 'help' }}
+                            >
+                                ({filledStatsCount}/{archivedTerms.length})
+                            </span>
+                        )}
+                    </h2>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button
+                            onClick={handleFetchStats}
+                            className="btn-secondary"
+                            disabled={loadingArchive}
+                            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                        >
+                            {loadingArchive ? t('loadingArchive') : (showStats ? t('hideStats') : t('showStats'))}
+                        </button>
+                    </div>
+                </div>
+
+                {showStats && (
+                    <div style={{ overflowX: 'auto', background: 'white', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+                        <table className="attendance-matrix" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                            <thead>
+                                <tr style={{ background: '#f9fafb' }}>
+                                    {[
+                                        { key: 'name', label: t('participants'), align: 'left', teamOnly: false },
+                                        { key: 'attendance', label: t('attendanceCount'), align: 'center', teamOnly: false },
+                                        { key: 'attendancePct', label: t('attendancePercentage'), align: 'center', teamOnly: false },
+                                        { key: 'wins', label: t('wins'), align: 'center', teamOnly: true },
+                                        { key: 'draws', label: t('draws'), align: 'center', teamOnly: true },
+                                        { key: 'losses', label: t('losses'), align: 'center', teamOnly: true },
+                                        { key: 'winPct', label: t('winPercentage'), align: 'center', teamOnly: true },
+                                        { key: 'lossPct', label: t('lossPercentage'), align: 'center', teamOnly: true }
+                                    ].filter(col => !col.teamOnly || event?.activityType === 'TEAM_SPORT' || (event as any).activityType === 'TEAM_SPORT').map(col => (
+                                        <th
+                                            key={col.key}
+                                            onClick={() => handleSort(col.key)}
+                                            style={{
+                                                padding: '12px 16px',
+                                                borderBottom: '1px solid #e5e7eb',
+                                                textAlign: col.align as any,
+                                                cursor: 'pointer',
+                                                userSelect: 'none',
+                                                whiteSpace: 'nowrap'
+                                            }}
+                                        >
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: col.align === 'center' ? 'center' : 'flex-start', gap: '4px' }}>
+                                                {col.label}
+                                                <span style={{ display: 'flex', flexDirection: 'column', color: sortConfig.key === col.key ? '#3b82f6' : '#d1d5db' }}>
+                                                    {sortConfig.key === col.key && sortConfig.direction === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} style={{ opacity: sortConfig.key === col.key ? 1 : 0.3 }} />}
+                                                </span>
+                                            </div>
+                                        </th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {globalStats.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={8} style={{ padding: '24px', textAlign: 'center', color: '#6b7280' }}>{t('noArchivedTerms')}</td>
+                                    </tr>
+                                ) : (
+                                    globalStats.map(s => (
+                                        <tr key={`${s.kind}-${s.id}`} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                                            <td style={{ padding: '12px 16px', fontWeight: 500 }}>
+                                                {s.name} {s.kind === 'GUEST' && <small>(G)</small>}
+                                            </td>
+                                            <td style={{
+                                                padding: '12px 16px',
+                                                textAlign: 'center',
+                                                color: s.attendance > 0 && s.attendance === statsHighlights.maxAttendance ? '#10b981' : 'inherit',
+                                                fontWeight: s.attendance > 0 && s.attendance === statsHighlights.maxAttendance ? 600 : 400
+                                            }}>
+                                                {s.attendance}/{archivedTerms.length}
+                                            </td>
+                                            <td style={{
+                                                padding: '12px 16px',
+                                                textAlign: 'center',
+                                                color: s.attendancePct > 0 && s.attendance === statsHighlights.maxAttendance ? '#10b981' : 'inherit',
+                                                fontWeight: s.attendancePct > 0 && s.attendance === statsHighlights.maxAttendance ? 600 : 400
+                                            }}>
+                                                {s.attendancePct.toFixed(1)}%
+                                            </td>
+                                            {(event?.activityType === 'TEAM_SPORT' || (event as any).activityType === 'TEAM_SPORT') && (
+                                                <>
+                                                    <td style={{
+                                                        padding: '12px 16px',
+                                                        textAlign: 'center',
+                                                        color: s.wins > 0 && s.wins === statsHighlights.maxWins ? '#10b981' : 'inherit',
+                                                        fontWeight: s.wins > 0 && s.wins === statsHighlights.maxWins ? 600 : 400
+                                                    }}>
+                                                        {s.wins}
+                                                    </td>
+                                                    <td style={{ padding: '12px 16px', textAlign: 'center' }}>{s.draws}</td>
+                                                    <td style={{
+                                                        padding: '12px 16px',
+                                                        textAlign: 'center',
+                                                        color: s.losses > 0 && s.losses === statsHighlights.maxLosses ? '#ef4444' : 'inherit',
+                                                        fontWeight: s.losses > 0 && s.losses === statsHighlights.maxLosses ? 600 : 400
+                                                    }}>
+                                                        {s.losses}
+                                                    </td>
+                                                    <td style={{
+                                                        padding: '12px 16px',
+                                                        textAlign: 'center',
+                                                        color: s.winPct > 0 && s.winPct === statsHighlights.maxWinPct ? '#10b981' : 'inherit',
+                                                        fontWeight: s.winPct > 0 && s.winPct === statsHighlights.maxWinPct ? 600 : 400
+                                                    }}>
+                                                        {s.winPct.toFixed(1)}%
+                                                    </td>
+                                                    <td style={{
+                                                        padding: '12px 16px',
+                                                        textAlign: 'center',
+                                                        color: s.lossPct > 0 && s.lossPct === statsHighlights.maxLossPct ? '#ef4444' : 'inherit',
+                                                        fontWeight: s.lossPct > 0 && s.lossPct === statsHighlights.maxLossPct ? 600 : 400
+                                                    }}>
+                                                        {s.lossPct.toFixed(1)}%
+                                                    </td>
+                                                </>
+                                            )}
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
+
             {/* Archived Terms Section */}
             <div className="dashboard" style={{ marginTop: '1rem', borderTop: '1px solid #e5e7eb', paddingTop: '2rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
                         <h2 style={{ fontSize: '1.5rem', fontWeight: 600, color: '#1f2937', margin: 0 }}>
-                            {t('archivedTerms')}
+                            {t('archivedTerms')} {showArchive && `(${archivedTerms.length})`}
                         </h2>
                         {showArchive && (
                             <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -655,11 +942,18 @@ const EventDetailPage: React.FC = () => {
                                 <TermAttendanceMatrix
                                     terms={archivedTerms}
                                     event={event!}
-                                    onAttendanceToggle={async () => { }}
-                                    onAddSelf={async () => { }}
+                                    onAttendanceToggle={async (termId, userId, kind) => {
+                                        try {
+                                            await api.post(`/events/terms/${termId}/attendance`, { userId, kind });
+                                            fetchArchivedTerms();
+                                        } catch (err: any) {
+                                            showToast(err.response?.data?.message || 'Failed to toggle attendance', 'error');
+                                        }
+                                    }}
+                                    onAddSelf={handleToggleEventAttendance}
                                     onRemoveAttendee={handleRequestRemoveAttendee}
                                     showPast={true}
-                                    readOnly={true}
+                                    readOnly={!canManage}
                                 />
                             ) : (
                                 <div className="groups-grid">
@@ -746,8 +1040,8 @@ const EventDetailPage: React.FC = () => {
                         <label>{t('deleteFrom')}</label>
                         <input
                             type="date"
-                            value={bulkDeleteStart}
-                            onChange={(e) => setBulkDeleteStart(e.target.value)}
+                            value={bulkStart}
+                            onChange={(e) => setBulkStart(e.target.value)}
                             required
                         />
                     </div>
@@ -755,8 +1049,8 @@ const EventDetailPage: React.FC = () => {
                         <label>{t('deleteTo')}</label>
                         <input
                             type="date"
-                            value={bulkDeleteEnd}
-                            onChange={(e) => setBulkDeleteEnd(e.target.value)}
+                            value={bulkEnd}
+                            onChange={(e) => setBulkEnd(e.target.value)}
                             required
                         />
                     </div>
@@ -826,6 +1120,30 @@ const EventDetailPage: React.FC = () => {
                     </div>
                 </form>
             </Modal>
+
+            {statsTerm && (
+                <TermStatsModal
+                    termId={statsTerm._id}
+                    participants={statsTerm.attendees.map((a: any) => {
+                        let name = 'Unknown';
+                        if (a.kind === 'USER' && typeof a.id === 'object' && a.id !== null) {
+                            name = (a.id as User).preferNickname && (a.id as User).nickname ? (a.id as User).nickname! : `${(a.id as User).firstName} ${(a.id as User).lastName}`;
+                        } else if (a.kind === 'GUEST' && a.id) {
+                            const guestId = typeof a.id === 'string' ? a.id : (a.id as any)._id;
+                            const guest = event?.guests.find(g => g._id === guestId);
+                            if (guest) name = `${guest.firstName} ${guest.lastName}`;
+                        }
+                        return { id: typeof a.id === 'string' ? a.id : (a.id as any)._id, kind: a.kind, name };
+                    })}
+                    initialStats={statsTerm.statistics}
+                    onClose={() => setStatsTerm(null)}
+                    onSave={() => {
+                        setStatsTerm(null);
+                        fetchEventDetails(); // Refresh to show new stats if needed
+                        fetchArchivedTerms(); // Refresh archive to show new stats
+                    }}
+                />
+            )}
         </div>
     );
 };

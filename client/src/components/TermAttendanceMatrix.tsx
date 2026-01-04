@@ -322,7 +322,7 @@ const TermAttendanceMatrix: React.FC<TermAttendanceMatrixProps> = ({
                 <table className="attendance-matrix">
                     <thead>
                         <tr>
-                            <th className="sticky-col">{t('name') || 'Name'}</th>
+                            <th className="sticky-col">{t('participantName') || 'Name'}</th>
                             {visibleTerms.map(term => {
                                 const meetMin = meetsMinimum(term);
                                 return (

@@ -7,7 +7,7 @@ import logger from '../utils/logger';
 
 export const createEvent = async (req: Request, res: Response) => {
     try {
-        const { name, place, type, startTime, endTime, date, recurrence, administrators, minAttendees, maxAttendees } = req.body;
+        const { name, place, type, startTime, endTime, date, recurrence, administrators, minAttendees, maxAttendees, activityType } = req.body;
         const ownerId = (req as any).user._id;
 
         // Custom validation
@@ -41,6 +41,7 @@ export const createEvent = async (req: Request, res: Response) => {
             date,
             recurrence,
             uuid,
+            activityType,
             administrators: administratorsList,
             minAttendees: minAttendees || 0,
             maxAttendees: maxAttendees || 0,
@@ -90,7 +91,7 @@ export const getDashboardEvents = async (req: Request, res: Response) => {
 
         // Attending: user is in attendees of any Term related to the Event OR in Event.attendees
         const attendingTerms = await Term.find({ "attendees.id": userId }).select('eventId');
-        const eventIdsFromTerms = attendingTerms.map(t => t.eventId);
+        const eventIdsFromTerms = attendingTerms.map((t: any) => t.eventId);
 
         const attending = await Event.find({
             $or: [
@@ -145,7 +146,7 @@ export const deleteEvent = async (req: Request, res: Response) => {
 
 export const updateEvent = async (req: Request, res: Response) => {
     try {
-        const { name, place, type, startTime, endTime, date, recurrence, administrators, minAttendees, maxAttendees } = req.body;
+        const { name, place, type, startTime, endTime, date, recurrence, administrators, minAttendees, maxAttendees, activityType } = req.body;
 
         let event = await Event.findById(req.params.id);
 
@@ -193,6 +194,7 @@ export const updateEvent = async (req: Request, res: Response) => {
 
         if (minAttendees !== undefined) eventData.minAttendees = minAttendees;
         if (maxAttendees !== undefined) eventData.maxAttendees = maxAttendees;
+        if (activityType !== undefined) eventData.activityType = activityType;
 
         if (type === EventType.ONE_TIME) {
             eventData.date = date;
@@ -523,9 +525,9 @@ export const getArchivedTerms = async (req: Request, res: Response) => {
             date: { $lt: today }
         }).sort({ date: -1 });
 
-        const originalAttendeesPerTerm = terms.map(t => JSON.parse(JSON.stringify(t.attendees)));
+        const originalAttendeesPerTerm = terms.map((t: any) => JSON.parse(JSON.stringify(t.attendees)));
 
-        const populatedTerms = await Promise.all(terms.map(t =>
+        const populatedTerms = await Promise.all(terms.map((t: any) =>
             Term.findById(t._id).populate({
                 path: 'attendees.id',
                 model: 'User',
@@ -534,16 +536,16 @@ export const getArchivedTerms = async (req: Request, res: Response) => {
         ));
 
         const fixedTerms = populatedTerms.map((t: any, tIdx: number) => {
-            if (t) {
-                t.attendees = t.attendees.map((a: any, aIdx: number) => {
-                    if (a.kind === 'GUEST' && (a.id === null || a.id === undefined)) {
-                        const origId = originalAttendeesPerTerm[tIdx][aIdx]?.id;
-                        return { ...a, id: origId ? origId.toString() : null };
-                    }
-                    return a;
-                });
-            }
-            return t;
+            if (!t) return null;
+            const termObj = t.toObject();
+            termObj.attendees = termObj.attendees.map((a: any, aIdx: number) => {
+                if (a.kind === 'GUEST' && (a.id === null || a.id === undefined)) {
+                    const origId = originalAttendeesPerTerm[tIdx][aIdx]?.id;
+                    return { ...a, id: origId ? origId.toString() : null };
+                }
+                return a;
+            });
+            return termObj;
         });
 
         res.json(fixedTerms);
@@ -678,6 +680,40 @@ export const addGuestToEvent = async (req: Request, res: Response) => {
         res.status(201).json(guestDoc);
     } catch (error: any) {
         logger.error('Error adding guest to event', { error: error.message, eventUuid: req.params.uuid, userId: (req as any).user._id });
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const updateTermStatistics = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { statistics } = req.body;
+
+        const term = await Term.findById(id);
+        if (!term) {
+            return res.status(404).json({ message: 'Term not found' });
+        }
+
+        const event = await Event.findById(term.eventId);
+        if (!event) {
+            return res.status(404).json({ message: 'Event not found' });
+        }
+
+        const user = (req as any).user;
+        const isAdmin = event.administrators.some((adminId: any) => adminId && adminId.toString() === user._id.toString());
+        const isOwner = event.ownerId && event.ownerId.toString() === user._id.toString();
+
+        if (!isOwner && !isAdmin) {
+            return res.status(401).json({ message: 'User not authorized to update statistics' });
+        }
+
+        term.statistics = statistics;
+        await term.save();
+
+        logger.info('Term statistics updated', { termId: term._id, eventId: event._id, userId: user._id });
+        res.json({ message: 'Statistics updated successfully', statistics: term.statistics });
+    } catch (error: any) {
+        logger.error('Error updating term statistics', { error: error.message, termId: req.params.id, userId: (req as any).user._id });
         res.status(500).json({ message: error.message });
     }
 };

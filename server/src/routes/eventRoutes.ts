@@ -1,5 +1,5 @@
 import express from 'express';
-import { createEvent, getEvents, getMyEvents, getDashboardEvents, deleteEvent, updateEvent, getEventByUuid, generateTerms, deleteTerm, toggleTermAttendance, toggleEventAttendance, getArchivedTerms, deleteArchivedTerms, removeAttendeeFromEvent, addGuestToEvent } from '../controllers/eventController';
+import { createEvent, getEvents, getMyEvents, getDashboardEvents, deleteEvent, updateEvent, getEventByUuid, generateTerms, deleteTerm, toggleTermAttendance, toggleEventAttendance, getArchivedTerms, deleteArchivedTerms, removeAttendeeFromEvent, addGuestToEvent, updateTermStatistics } from '../controllers/eventController';
 import { protect } from '../middleware/authMiddleware';
 
 const router = express.Router();
@@ -10,6 +10,7 @@ router.get('/dashboard', protect, getDashboardEvents);
 router.get('/my', protect, getMyEvents);
 router.post('/terms', protect, generateTerms);
 router.post('/terms/:termId/attendance', protect, toggleTermAttendance);
+router.post('/terms/:id/statistics', protect, updateTermStatistics);
 router.post('/:uuid/attendance', protect, toggleEventAttendance);
 router.post('/uuid/:uuid/guests', protect, addGuestToEvent);
 router.delete('/terms/:id', protect, deleteTerm);

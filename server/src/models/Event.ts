@@ -11,6 +11,10 @@ export enum RecurrenceFrequency {
     MONTHLY = 'MONTHLY'
 }
 
+export enum ActivityType {
+    TEAM_SPORT = 'TEAM_SPORT'
+}
+
 export interface IRecurrence {
     frequency: RecurrenceFrequency;
     weekDays?: number[]; // 0-6, where 0 is Sunday
@@ -40,6 +44,7 @@ export interface IEvent extends Document {
     recurrence?: IRecurrence; // For RECURRING
     uuid: string;
     administrators: mongoose.Types.ObjectId[];
+    activityType?: ActivityType;
     attendees: IAttendee[];
     guests: IGuest[];
     minAttendees: number;
@@ -94,6 +99,11 @@ const EventSchema: Schema = new Schema({
         type: String,
         required: true,
         unique: true
+    },
+    activityType: {
+        type: String,
+        enum: Object.values(ActivityType),
+        required: false
     },
     administrators: [{
         type: mongoose.Schema.Types.ObjectId,
