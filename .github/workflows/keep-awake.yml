@@ -10,4 +10,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Send ping request
-        run: curl -s https://orgieapp-b3fub4c5auhab7at.westeurope-01.azurewebsites.net/
+        run: curl -s https://orgieapp-b3fub4c5auhab7at.westeurope-01.azurewebsites.net/event/6659bd33-769f-4647-9a50-6da5fce2818f
