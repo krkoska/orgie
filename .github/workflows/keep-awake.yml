@@ -1,0 +1,13 @@
+name: Keep App Awake
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send ping request
+        run: curl -s https://orgieapp-b3fub4c5auhab7at.westeurope-01.azurewebsites.net/
