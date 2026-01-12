@@ -348,9 +348,59 @@ const EventDetailPage: React.FC = () => {
             totalGames: number;
         }>();
 
+        // 1. Initialize statsMap with all current event participants
+        if (event) {
+            event.attendees.forEach(a => {
+                const id = typeof a.id === 'string' ? a.id : (a.id as any)._id;
+                const key = `${a.kind}-${id}`;
+                if (!statsMap.has(key)) {
+                    let name = 'Unknown';
+                    if (a.kind === 'USER' && typeof a.id === 'object' && a.id !== null) {
+                        const u = a.id as any;
+                        name = u.preferNickname && u.nickname ? u.nickname : `${u.firstName} ${u.lastName}`;
+                    } else if (a.kind === 'GUEST') {
+                        const guest = event.guests.find(g => g._id === id);
+                        if (guest) name = `${guest.firstName} ${guest.lastName}`;
+                    }
+                    statsMap.set(key, {
+                        id,
+                        kind: a.kind,
+                        name,
+                        attendance: 0,
+                        wins: 0,
+                        draws: 0,
+                        losses: 0,
+                        totalGames: 0
+                    });
+                }
+            });
+
+            event.guests.forEach(g => {
+                const key = `GUEST-${g._id}`;
+                if (!statsMap.has(key)) {
+                    statsMap.set(key, {
+                        id: g._id,
+                        kind: 'GUEST',
+                        name: `${g.firstName} ${g.lastName}`,
+                        attendance: 0,
+                        wins: 0,
+                        draws: 0,
+                        losses: 0,
+                        totalGames: 0
+                    });
+                }
+            });
+        }
+
         const totalTerms = archivedTerms.length;
 
         archivedTerms.forEach(term => {
+            // Create a set of attendee keys for this specific term to filter match stats
+            const termAttendeeKeys = new Set(term.attendees.map(att => {
+                const id = typeof att.id === 'string' ? att.id : (att.id as any)._id;
+                return `${att.kind}-${id}`;
+            }));
+
             // Count attendance
             term.attendees.forEach(att => {
                 const id = typeof att.id === 'string' ? att.id : (att.id as any)._id;
@@ -378,17 +428,19 @@ const EventDetailPage: React.FC = () => {
                 statsMap.get(key)!.attendance += 1;
             });
 
-            // Count match results
+            // Count match results ONLY for those who actually attended this term
             if (term.statistics?.teams) {
                 term.statistics.teams.forEach(team => {
                     team.members.forEach(member => {
                         const key = `${member.kind}-${member.id}`;
-                        const stats = statsMap.get(key);
-                        if (stats) {
-                            stats.wins += (team.wins || 0);
-                            stats.draws += (team.draws || 0);
-                            stats.losses += (team.losses || 0);
-                            stats.totalGames += ((team.wins || 0) + (team.draws || 0) + (team.losses || 0));
+                        if (termAttendeeKeys.has(key)) {
+                            const stats = statsMap.get(key);
+                            if (stats) {
+                                stats.wins += (team.wins || 0);
+                                stats.draws += (team.draws || 0);
+                                stats.losses += (team.losses || 0);
+                                stats.totalGames += ((team.wins || 0) + (team.draws || 0) + (team.losses || 0));
+                            }
                         }
                     });
                 });
