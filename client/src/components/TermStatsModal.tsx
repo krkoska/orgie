@@ -46,10 +46,9 @@ const TermStatsModal: React.FC<TermStatsModalProps> = ({ termId, participants, i
                 wins: it.wins,
                 draws: it.draws,
                 losses: it.losses,
-                members: it.members.map(m => {
-                    const found = participants.find(p => p.id === m.id && p.kind === m.kind);
-                    return found || { ...m, name: '???' };
-                })
+                members: it.members
+                    .map(m => participants.find(p => p.id === m.id && p.kind === m.kind))
+                    .filter((found): found is Participant => !!found)
             }));
             setTeams(initialTeams);
 
@@ -74,8 +73,6 @@ const TermStatsModal: React.FC<TermStatsModalProps> = ({ termId, participants, i
     const handleNumTeamsChange = (val: number) => {
         const n = Math.max(1, val);
         setNumTeams(n);
-        // Resets teams if number changes significantly? 
-        // For simplicity, let's just adjust the array length
         setTeams(prev => {
             if (n > prev.length) {
                 const added = Array.from({ length: n - prev.length }, (_, i) => ({
@@ -93,9 +90,7 @@ const TermStatsModal: React.FC<TermStatsModalProps> = ({ termId, participants, i
     };
 
     const moveToTeam = (participant: Participant, teamIdx: number) => {
-        // Remove from unassigned
         setUnassigned(prev => prev.filter(p => p.id !== participant.id || p.kind !== participant.kind));
-        // Remove from any other team
         setTeams(prev => prev.map((team, idx) => {
             if (idx === teamIdx) {
                 return { ...team, members: [...team.members, participant] };
@@ -135,9 +130,39 @@ const TermStatsModal: React.FC<TermStatsModalProps> = ({ termId, participants, i
         }
     };
 
+    const termOutcome = React.useMemo(() => {
+        const teamsWithGames = teams.filter(t => (t.wins + t.draws + t.losses) > 0);
+        if (teamsWithGames.length === 0) return null;
+
+        const sorted = [...teamsWithGames].sort((a, b) => {
+            if (b.wins !== a.wins) return b.wins - a.wins;
+            if (b.draws !== a.draws) return b.draws - a.draws;
+            return a.losses - b.losses;
+        });
+
+        const best = sorted[0];
+        const topTeams = sorted.filter(t => t.wins === best.wins && t.draws === best.draws && t.losses === best.losses);
+        const singleWinner = topTeams.length === 1;
+
+        return teamsWithGames.map(team => {
+            const isTop = topTeams.some(tt => tt.name === team.name);
+            const outcomeKey = isTop ? (singleWinner ? 'outcomeWin' : 'outcomeDraw') : 'outcomeLoss';
+            const outcome = isTop ? (singleWinner ? 'WIN' : 'DRAW') : 'LOSS';
+            const color = outcome === 'WIN' ? '#10b981' : (outcome === 'DRAW' ? '#f59e0b' : '#ef4444');
+            const bg = outcome === 'WIN' ? '#ecfdf5' : (outcome === 'DRAW' ? '#fffbeb' : '#fef2f2');
+
+            return {
+                name: team.name,
+                label: t(outcomeKey),
+                color,
+                bg
+            };
+        });
+    }, [teams, t]);
+
     return (
         <div className="modal-overlay">
-            <div className="modal-content stats-modal" style={{ maxWidth: '900px', width: '95%' }}>
+            <div className="modal-content stats-modal">
                 <div className="modal-header">
                     <h2>{t('statistics')}</h2>
                     <button className="close-button" onClick={onClose}>&times;</button>
@@ -152,21 +177,45 @@ const TermStatsModal: React.FC<TermStatsModalProps> = ({ termId, participants, i
                             max="10"
                             value={numTeams}
                             onChange={(e) => handleNumTeamsChange(parseInt(e.target.value) || 2)}
+                            className="team-num-input"
                             style={{ width: '80px' }}
                         />
                     </div>
 
-                    <div className="stats-layout" style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '2rem' }}>
+                    {/* Outcome Preview Section */}
+                    <div className="outcome-preview">
+                        <h3>
+                            {t('termOutcomePreview') || 'Term Outcome Preview'}
+                        </h3>
+                        <div className="outcome-list">
+                            {!termOutcome ? (
+                                <span className="no-stats-placeholder">
+                                    {t('noStatsEntered') || 'Enter stats to see the outcome'}
+                                </span>
+                            ) : termOutcome.map(res => (
+                                <div key={res.name} className="outcome-item" style={{
+                                    border: `1px solid ${res.color}`,
+                                    background: res.bg,
+                                    color: res.color
+                                }}>
+                                    <span>{res.name}:</span>
+                                    <span>{res.label}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="stats-layout">
                         {/* Unassigned List */}
                         <div className="unassigned-container">
                             <h3>{t('participants')} ({unassigned.length})</h3>
-                            <div className="participant-list" style={{ border: '1px solid #ddd', borderRadius: '4px', padding: '0.5rem', minHeight: '200px', maxHeight: '400px', overflowY: 'auto' }}>
+                            <div className="participant-list-container">
                                 {unassigned.map(p => (
-                                    <div key={`${p.kind}-${p.id}`} className="participant-item-mini" style={{ padding: '4px 8px', margin: '4px 0', background: '#f0f0f0', borderRadius: '4px', fontSize: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div key={`${p.kind}-${p.id}`} className="participant-item-mini">
                                         <span>{p.name} {p.kind === 'GUEST' && <small>(G)</small>}</span>
                                         <div className="team-assign-buttons">
                                             {teams.map((_, idx) => (
-                                                <button key={idx} onClick={() => moveToTeam(p, idx)} style={{ padding: '2px 6px', marginLeft: '2px' }}>T{idx + 1}</button>
+                                                <button key={idx} onClick={() => moveToTeam(p, idx)}>T{idx + 1}</button>
                                             ))}
                                         </div>
                                     </div>
@@ -175,36 +224,36 @@ const TermStatsModal: React.FC<TermStatsModalProps> = ({ termId, participants, i
                         </div>
 
                         {/* Teams Container */}
-                        <div className="teams-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '1rem' }}>
+                        <div className="teams-grid">
                             {teams.map((team, idx) => (
-                                <div key={idx} className="team-card" style={{ border: '1px solid var(--primary-color)', borderRadius: '8px', padding: '0.75rem', background: 'rgba(0,0,0,0.02)' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                <div key={idx} className="team-card">
+                                    <div className="team-card-header">
                                         <input
                                             type="text"
                                             value={team.name}
                                             onChange={(e) => setTeams(prev => prev.map((t, i) => i === idx ? { ...t, name: e.target.value } : t))}
-                                            style={{ fontWeight: 'bold', border: 'none', background: 'transparent', width: '150px' }}
+                                            className="team-name-input"
                                         />
                                     </div>
 
-                                    <div className="team-results" style={{ display: 'flex', gap: '8px', marginBottom: '0.75rem' }}>
+                                    <div className="team-results">
                                         <div className="res-group">
-                                            <label style={{ fontSize: '11px', display: 'block', color: '#666' }}>{t('wins')}</label>
-                                            <input type="number" value={team.wins} onChange={(e) => setTeams(prev => prev.map((t, i) => i === idx ? { ...t, wins: parseInt(e.target.value) || 0 } : t))} style={{ width: '60px', textAlign: 'center', padding: '4px', fontSize: '16px', fontWeight: 'bold' }} />
+                                            <label>{t('wins')}</label>
+                                            <input type="number" min="0" value={team.wins} onChange={(e) => setTeams(prev => prev.map((t, i) => i === idx ? { ...t, wins: Math.max(0, parseInt(e.target.value) || 0) } : t))} />
                                         </div>
                                         <div className="res-group">
-                                            <label style={{ fontSize: '11px', display: 'block', color: '#666' }}>{t('draws')}</label>
-                                            <input type="number" value={team.draws} onChange={(e) => setTeams(prev => prev.map((t, i) => i === idx ? { ...t, draws: parseInt(e.target.value) || 0 } : t))} style={{ width: '60px', textAlign: 'center', padding: '4px', fontSize: '16px', fontWeight: 'bold' }} />
+                                            <label>{t('draws')}</label>
+                                            <input type="number" min="0" value={team.draws} onChange={(e) => setTeams(prev => prev.map((t, i) => i === idx ? { ...t, draws: Math.max(0, parseInt(e.target.value) || 0) } : t))} />
                                         </div>
                                         <div className="res-group">
-                                            <label style={{ fontSize: '11px', display: 'block', color: '#666' }}>{t('losses')}</label>
-                                            <input type="number" value={team.losses} onChange={(e) => setTeams(prev => prev.map((t, i) => i === idx ? { ...t, losses: parseInt(e.target.value) || 0 } : t))} style={{ width: '60px', textAlign: 'center', padding: '4px', fontSize: '16px', fontWeight: 'bold' }} />
+                                            <label>{t('losses')}</label>
+                                            <input type="number" min="0" value={team.losses} onChange={(e) => setTeams(prev => prev.map((t, i) => i === idx ? { ...t, losses: Math.max(0, parseInt(e.target.value) || 0) } : t))} />
                                         </div>
                                     </div>
 
-                                    <div className="team-members" style={{ minHeight: '60px', background: 'white', padding: '4px', borderRadius: '4px', border: '1px solid #eee' }}>
+                                    <div className="team-members-container">
                                         {team.members.map(m => (
-                                            <div key={`${m.kind}-${m.id}`} className="member-item" onClick={() => moveToUnassigned(m)} style={{ padding: '2px 6px', margin: '2px', background: '#eef', borderRadius: '4px', display: 'inline-block', fontSize: '12px', cursor: 'pointer' }}>
+                                            <div key={`${m.kind}-${m.id}`} className="member-item" onClick={() => moveToUnassigned(m)}>
                                                 {m.name} &times;
                                             </div>
                                         ))}
@@ -215,9 +264,12 @@ const TermStatsModal: React.FC<TermStatsModalProps> = ({ termId, participants, i
                     </div>
                 </div>
 
-                <div className="modal-footer" style={{ justifyContent: 'flex-start' }}>
+                <div className="modal-footer">
                     <button className="btn-primary" onClick={handleSave} disabled={loading}>
                         {loading ? t('loading') : t('saveStatistics')}
+                    </button>
+                    <button className="btn-secondary" onClick={onClose}>
+                        {t('cancel')}
                     </button>
                 </div>
             </div>

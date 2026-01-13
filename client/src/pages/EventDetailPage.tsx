@@ -133,6 +133,13 @@ const EventDetailPage: React.FC = () => {
         }
     };
 
+    const refreshData = async () => {
+        await fetchEventDetails();
+        if (showArchive || showStats) {
+            await fetchArchivedTerms();
+        }
+    };
+
     useEffect(() => {
         if (uuid) {
             fetchEventDetails();
@@ -215,7 +222,7 @@ const EventDetailPage: React.FC = () => {
             await api.delete(`/events/terms/${termToDelete}`);
             setIsDeleteTermModalOpen(false);
             setTermToDelete(null);
-            fetchEventDetails();
+            await refreshData();
             showToast(t('termDeleted') || 'Term deleted successfully', 'success');
         } catch (error: any) {
             showToast(error.response?.data?.message || 'Failed to delete term', 'error');
@@ -225,7 +232,7 @@ const EventDetailPage: React.FC = () => {
     const handleAttendanceToggle = async (termId: string, userId?: string, kind: 'USER' | 'GUEST' = 'USER') => {
         try {
             await api.post(`/events/terms/${termId}/attendance`, { userId, kind });
-            fetchEventDetails(); // Refresh to get updated attendees
+            await refreshData();
             showToast(t('attendanceUpdated') || 'Attendance updated', 'success');
         } catch (error: any) {
             showToast(error.response?.data?.message || 'Failed to update attendance', 'error');
@@ -236,7 +243,7 @@ const EventDetailPage: React.FC = () => {
         if (!event) return;
         try {
             await api.post(`/events/${event.uuid}/attendance`, {});
-            fetchEventDetails();
+            await refreshData();
             showToast(t('attendanceUpdated') || 'Attendance updated', 'success');
         } catch (error: any) {
             showToast(error.response?.data?.message || 'Failed to update attendance', 'error');
@@ -254,7 +261,7 @@ const EventDetailPage: React.FC = () => {
             await api.delete(`/events/uuid/${event.uuid}/attendees/${attendeeToRemove.id}?kind=${attendeeToRemove.kind}`);
             setIsDeleteAttendeeModalOpen(false);
             setAttendeeToRemove(null);
-            fetchEventDetails();
+            await refreshData();
             showToast(t('attendeeRemoved') || 'Attendee removed successfully', 'success');
         } catch (error: any) {
             showToast(error.response?.data?.message || 'Failed to remove attendee', 'error');
@@ -429,21 +436,50 @@ const EventDetailPage: React.FC = () => {
             });
 
             // Count match results ONLY for those who actually attended this term
-            if (term.statistics?.teams) {
-                term.statistics.teams.forEach(team => {
-                    team.members.forEach(member => {
-                        const key = `${member.kind}-${member.id}`;
-                        if (termAttendeeKeys.has(key)) {
-                            const stats = statsMap.get(key);
-                            if (stats) {
-                                stats.wins += (team.wins || 0);
-                                stats.draws += (team.draws || 0);
-                                stats.losses += (team.losses || 0);
-                                stats.totalGames += ((team.wins || 0) + (team.draws || 0) + (team.losses || 0));
-                            }
-                        }
+            // New logic: Determine one winner (or a draw) per term
+            if (term.statistics?.teams && term.statistics.teams.length > 0) {
+                // 1. Identify teams that actually played games in this term
+                const teamsWithStats = term.statistics.teams.map(t => ({
+                    ...t,
+                    w: t.wins || 0,
+                    d: t.draws || 0,
+                    l: t.losses || 0,
+                    played: (t.wins || 0) + (t.draws || 0) + (t.losses || 0)
+                })).filter(t => t.played > 0);
+
+                if (teamsWithStats.length > 0) {
+                    // 2. Sort teams using the hierarchy: Wins (desc) -> Draws (desc) -> Losses (asc)
+                    const sortedTeams = [...teamsWithStats].sort((a, b) => {
+                        if (b.w !== a.w) return b.w - a.w;
+                        if (b.d !== a.d) return b.d - a.d;
+                        return a.l - b.l;
                     });
-                });
+
+                    const bestCandidate = sortedTeams[0];
+                    const topTeams = sortedTeams.filter(t =>
+                        t.w === bestCandidate.w && t.d === bestCandidate.d && t.l === bestCandidate.l
+                    );
+
+                    const singleWinnerExists = topTeams.length === 1;
+
+                    // 3. Assign outcomes (Win, Draw, or Loss) to players
+                    teamsWithStats.forEach(team => {
+                        // A player gets a result if they are in the best team(s)
+                        const isTop = topTeams.some(tt => tt.name === team.name); // Using name or some identifier
+                        const outcome = isTop ? (singleWinnerExists ? 'WIN' : 'DRAW') : 'LOSS';
+
+                        team.members.forEach(member => {
+                            const key = `${member.kind}-${member.id}`;
+                            const stats = statsMap.get(key);
+                            if (stats && termAttendeeKeys.has(key)) {
+                                if (outcome === 'WIN') stats.wins += 1;
+                                else if (outcome === 'DRAW') stats.draws += 1;
+                                else stats.losses += 1;
+                                stats.totalGames += 1;
+                            }
+                        });
+                    });
+                }
             }
         });
 
@@ -524,7 +560,7 @@ const EventDetailPage: React.FC = () => {
     const daysMap = [t('Sun'), t('Mon'), t('Tue'), t('Wed'), t('Thu'), t('Fri'), t('Sat')];
 
     const renderTermCard = (term: Term, isArchived: boolean = false) => {
-        const isAttendingTerm = user && term.attendees.some(a => a.kind === 'USER' && (typeof a.id === 'string' ? a.id === user._id : a.id._id === user._id));
+        const isAttendingTerm = !!user && term.attendees.some(a => a.kind === 'USER' && (typeof a.id === 'string' ? String(a.id) === String(user._id) : String(a.id?._id) === String(user._id)));
         const isFull = event && event.maxAttendees > 0 && term.attendees.length >= event.maxAttendees;
         const canJoin = (!isArchived || canManage) && user && !isAttendingTerm && !isFull;
         const canLeave = (!isArchived || canManage) && user && isAttendingTerm;
@@ -994,14 +1030,7 @@ const EventDetailPage: React.FC = () => {
                                 <TermAttendanceMatrix
                                     terms={archivedTerms}
                                     event={event!}
-                                    onAttendanceToggle={async (termId, userId, kind) => {
-                                        try {
-                                            await api.post(`/events/terms/${termId}/attendance`, { userId, kind });
-                                            fetchArchivedTerms();
-                                        } catch (err: any) {
-                                            showToast(err.response?.data?.message || 'Failed to toggle attendance', 'error');
-                                        }
-                                    }}
+                                    onAttendanceToggle={handleAttendanceToggle}
                                     onAddSelf={handleToggleEventAttendance}
                                     onRemoveAttendee={handleRequestRemoveAttendee}
                                     showPast={true}

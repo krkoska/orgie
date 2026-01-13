@@ -163,6 +163,11 @@ const translations: Translations = {
     'guest': { en: 'Guest', cs: 'Host' },
     'addedBy': { en: 'Added by', cs: 'Přidal' },
     'guestAdded': { en: 'Guest added successfully', cs: 'Host byl úspěšně přidán' },
+    'termOutcomePreview': { en: 'Term Outcome Preview', cs: 'Předběžný výsledek termínu' },
+    'noStatsEntered': { en: 'Enter stats to see the outcome', cs: 'Zadejte výsledky pro zobrazení výsledku' },
+    'outcomeWin': { en: 'WIN', cs: 'VÝHRA' },
+    'outcomeDraw': { en: 'DRAW', cs: 'REMÍZA' },
+    'outcomeLoss': { en: 'LOSS', cs: 'PROHRA' },
 };
 
 interface LanguageContextType {

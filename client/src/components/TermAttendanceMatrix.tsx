@@ -150,18 +150,19 @@ const TermAttendanceMatrix: React.FC<TermAttendanceMatrixProps> = ({
 
     // 1. Process overall event attendees
     event.attendees.forEach(a => {
-        if (a.kind === 'USER' && typeof a.id === 'object' && a.id !== null) {
+        if (a.kind === 'USER' && a.id !== null) {
             const u = a.id;
-            if (!seenMap.has(u._id)) {
+            const userId = typeof u === 'string' ? u : u._id;
+            if (!seenMap.has(userId)) {
                 participants.push({
-                    id: u._id,
+                    id: userId,
                     kind: 'USER',
-                    firstName: u.firstName,
-                    lastName: u.lastName,
-                    nickname: u.nickname,
-                    preferNickname: u.preferNickname
+                    firstName: typeof u === 'object' ? u.firstName : t('unknown'),
+                    lastName: typeof u === 'object' ? u.lastName : '',
+                    nickname: typeof u === 'object' ? u.nickname : undefined,
+                    preferNickname: typeof u === 'object' ? u.preferNickname : false
                 });
-                seenMap.set(u._id, true);
+                seenMap.set(userId, true);
             }
         }
     });
@@ -169,18 +170,19 @@ const TermAttendanceMatrix: React.FC<TermAttendanceMatrixProps> = ({
     // 2. Process all term attendees for the current view (active or archived)
     filteredTerms.forEach(term => {
         term.attendees.forEach(a => {
-            if (a.kind === 'USER' && typeof a.id === 'object' && a.id !== null) {
+            if (a.kind === 'USER' && a.id !== null) {
                 const u = a.id;
-                if (!seenMap.has(u._id)) {
+                const userId = typeof u === 'string' ? u : u._id;
+                if (!seenMap.has(userId)) {
                     participants.push({
-                        id: u._id,
+                        id: userId,
                         kind: 'USER',
-                        firstName: u.firstName,
-                        lastName: u.lastName,
-                        nickname: u.nickname,
-                        preferNickname: u.preferNickname
+                        firstName: typeof u === 'object' ? u.firstName : t('unknown'),
+                        lastName: typeof u === 'object' ? u.lastName : '',
+                        nickname: typeof u === 'object' ? u.nickname : undefined,
+                        preferNickname: typeof u === 'object' ? u.preferNickname : false
                     });
-                    seenMap.set(u._id, true);
+                    seenMap.set(userId, true);
                 }
             } else if (a.kind === 'GUEST') {
                 const guestId = (typeof a.id === 'string')
@@ -245,7 +247,7 @@ const TermAttendanceMatrix: React.FC<TermAttendanceMatrixProps> = ({
         if (!term) return false;
         return term.attendees.some(a => {
             const id = typeof a.id === 'object' && a.id !== null ? a.id._id : a.id;
-            return id === participantId && a.kind === kind;
+            return String(id) === String(participantId) && a.kind === kind;
         });
     };
 

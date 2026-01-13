@@ -526,3 +526,171 @@ input[type="time"] {
   background-color: rgba(239, 68, 68, 0.1);
   transform: scale(1.1);
 }
+
+/* TermStatsModal Specific Styles */
+.stats-modal {
+  max-width: 900px !important;
+  width: 95% !important;
+}
+
+.outcome-preview {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.outcome-preview h3 {
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+  font-size: 14px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.outcome-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.no-stats-placeholder {
+  font-size: 14px;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.outcome-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.stats-layout {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 2rem;
+}
+
+@media (max-width: 768px) {
+  .stats-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.participant-list-container {
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 0.5rem;
+  min-height: 200px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.participant-item-mini {
+  padding: 4px 8px;
+  margin: 4px 0;
+  background: #f0f0f0;
+  border-radius: 4px;
+  font-size: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.team-assign-buttons {
+  display: flex;
+  gap: 2px;
+}
+
+.team-assign-buttons button {
+  padding: 2px 6px;
+  width: auto;
+  font-size: 12px;
+}
+
+.teams-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.team-card {
+  border: 1px solid var(--primary-color);
+  border-radius: 8px;
+  padding: 0.75rem;
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.team-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.team-name-input {
+  font-weight: bold;
+  border: none;
+  background: transparent;
+  width: 150px;
+  padding: 4px;
+}
+
+.team-name-input:focus {
+  background: white;
+  outline: 1px solid #ddd;
+}
+
+.team-results {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 0.75rem;
+}
+
+.res-group {
+  flex: 1;
+}
+
+.res-group label {
+  font-size: 11px;
+  display: block;
+  color: #666;
+}
+
+.res-group input {
+  width: 100% !important;
+  text-align: center;
+  padding: 4px;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.team-members-container {
+  min-height: 60px;
+  background: white;
+  padding: 4px;
+  border-radius: 4px;
+  border: 1px solid #eee;
+}
+
+.member-item {
+  padding: 2px 6px;
+  margin: 2px;
+  background: #eef;
+  border-radius: 4px;
+  display: inline-block;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.member-item:hover {
+  background: #dde;
+}
