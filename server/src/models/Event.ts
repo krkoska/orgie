@@ -33,6 +33,12 @@ export interface IAttendee {
     kind: 'USER' | 'GUEST';
 }
 
+export interface ISeason {
+    name: string;
+    startDate: Date;
+    endDate?: Date;
+}
+
 export interface IEvent extends Document {
     name: string;
     place?: string;
@@ -49,6 +55,7 @@ export interface IEvent extends Document {
     guests: IGuest[];
     minAttendees: number;
     maxAttendees: number;
+    seasons: ISeason[];
     createdAt: Date;
     updatedAt: Date;
 }
@@ -119,7 +126,12 @@ const EventSchema: Schema = new Schema({
         addedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }
     }],
     minAttendees: { type: Number, default: 0, min: 0 },
-    maxAttendees: { type: Number, default: 0, min: 0 }
+    maxAttendees: { type: Number, default: 0, min: 0 },
+    seasons: [{
+        name: { type: String, required: true },
+        startDate: { type: Date, required: true },
+        endDate: { type: Date }
+    }]
 }, {
     timestamps: true
 });

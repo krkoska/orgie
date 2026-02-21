@@ -242,6 +242,9 @@ input[type="time"] {
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
   transform: scale(0.9);
   animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
 }
 
 .modal-header {
@@ -297,6 +300,8 @@ input[type="time"] {
   color: #555;
   font-size: 1.1rem;
   line-height: 1.5;
+  overflow-y: auto;
+  flex: 1;
 }
 
 .modal-footer {

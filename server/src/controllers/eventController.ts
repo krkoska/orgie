@@ -1,16 +1,57 @@
 import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import { v4 as uuidv4 } from 'uuid';
-import Event, { EventType } from '../models/Event';
+import Event, { EventType, ISeason } from '../models/Event';
 import Term from '../models/Term';
 import logger from '../utils/logger';
 
+const validateSeasons = (seasons: ISeason[]) => {
+    if (!seasons || seasons.length === 0) return;
+
+    // Sort seasons by startDate to make overlap check easier
+    const sortedSeasons = [...seasons].sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+
+    for (let i = 0; i < sortedSeasons.length; i++) {
+        const season = sortedSeasons[i];
+        const start = new Date(season.startDate);
+        const end = season.endDate ? new Date(season.endDate) : null;
+
+        if (!season.name) throw new Error('Season name is required');
+        if (isNaN(start.getTime())) throw new Error(`Invalid start date for season: ${season.name}`);
+        if (end && isNaN(end.getTime())) throw new Error(`Invalid end date for season: ${season.name}`);
+
+        if (end && start > end) {
+            throw new Error(`Start date must be before end date for season: ${season.name}`);
+        }
+
+        // Overlap check
+        if (i > 0) {
+            const prevSeason = sortedSeasons[i - 1];
+            const prevEnd = prevSeason.endDate ? new Date(prevSeason.endDate) : null;
+
+            if (!prevEnd) {
+                throw new Error(`Only the latest season can have no end date. Season "${prevSeason.name}" must have an end date because "${season.name}" starts after it.`);
+            }
+
+            if (start <= prevEnd) {
+                throw new Error(`Seasons overlap: "${prevSeason.name}" and "${season.name}"`);
+            }
+        }
+    }
+};
+
 export const createEvent = async (req: Request, res: Response) => {
     try {
-        const { name, place, type, startTime, endTime, date, recurrence, administrators, minAttendees, maxAttendees, activityType } = req.body;
+        const { name, place, type, startTime, endTime, date, recurrence, administrators, minAttendees, maxAttendees, activityType, seasons } = req.body;
         const ownerId = (req as any).user._id;
 
         // Custom validation
+        try {
+            validateSeasons(seasons);
+        } catch (err: any) {
+            return res.status(400).json({ message: err.message });
+        }
+
         if (type === EventType.ONE_TIME) {
             if (!date) {
                 return res.status(400).json({ message: 'Date is required for ONE_TIME events' });
@@ -45,6 +86,7 @@ export const createEvent = async (req: Request, res: Response) => {
             administrators: administratorsList,
             minAttendees: minAttendees || 0,
             maxAttendees: maxAttendees || 0,
+            seasons: seasons || [],
             attendees: []
         });
 
@@ -146,7 +188,7 @@ export const deleteEvent = async (req: Request, res: Response) => {
 
 export const updateEvent = async (req: Request, res: Response) => {
     try {
-        const { name, place, type, startTime, endTime, date, recurrence, administrators, minAttendees, maxAttendees, activityType } = req.body;
+        const { name, place, type, startTime, endTime, date, recurrence, administrators, minAttendees, maxAttendees, activityType, seasons } = req.body;
 
         let event = await Event.findById(req.params.id);
 
@@ -165,6 +207,12 @@ export const updateEvent = async (req: Request, res: Response) => {
         }
 
         // Validation
+        try {
+            validateSeasons(seasons || event.seasons);
+        } catch (err: any) {
+            return res.status(400).json({ message: err.message });
+        }
+
         if (type === EventType.ONE_TIME) {
             if (!date) {
                 return res.status(400).json({ message: 'Date is required for ONE_TIME events' });
@@ -195,6 +243,7 @@ export const updateEvent = async (req: Request, res: Response) => {
         if (minAttendees !== undefined) eventData.minAttendees = minAttendees;
         if (maxAttendees !== undefined) eventData.maxAttendees = maxAttendees;
         if (activityType !== undefined) eventData.activityType = activityType;
+        if (seasons !== undefined) eventData.seasons = seasons;
 
         if (type === EventType.ONE_TIME) {
             eventData.date = date;

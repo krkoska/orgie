@@ -2,7 +2,9 @@ import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import User from '../models/User';
 import logger from '../utils/logger';
-import { registerSchema, loginSchema } from '../utils/validation';
+import { registerSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema } from '../utils/validation';
+import crypto from 'crypto';
+import sendEmail from '../utils/email';
 
 const ACCESS_TOKEN_EXPIRY = '15m';
 const REFRESH_TOKEN_EXPIRY = '7d';
@@ -173,6 +175,87 @@ export const getMe = async (req: Request, res: Response) => {
         });
     } else {
         res.status(404).json({ message: 'User not found' });
+    }
+};
+
+export const forgotPassword = async (req: Request, res: Response) => {
+    try {
+        const { email } = forgotPasswordSchema.parse(req.body);
+        const user = await User.findOne({ email });
+
+        if (!user) {
+            // Don't reveal if user exists or not for security
+            return res.status(200).json({ status: 'success', message: 'If an account with that email exists, a reset link has been sent.' });
+        }
+
+        // Generate reset token
+        const resetToken = crypto.randomBytes(20).toString('hex');
+
+        // Hash token and set to resetPasswordToken field
+        user.resetPasswordToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+
+        // Set expiry (1 hour)
+        user.resetPasswordExpires = new Date(Date.now() + 3600000);
+
+        await user.save();
+
+        // Create reset URL
+        const resetUrl = `${req.get('origin')}/reset-password/${resetToken}`;
+
+        const message = `You are receiving this email because you (or someone else) have requested the reset of a password. Please make a POST request to: \n\n ${resetUrl}`;
+
+        try {
+            await sendEmail({
+                email: user.email!,
+                subject: 'Password Reset Token',
+                message,
+                html: `<p>You requested a password reset. Please click the link below to reset your password:</p><a href="${resetUrl}">${resetUrl}</a>`
+            });
+
+            res.status(200).json({ status: 'success', message: 'Email sent' });
+        } catch (err) {
+            user.resetPasswordToken = undefined;
+            user.resetPasswordExpires = undefined;
+            await user.save();
+            return res.status(500).json({ message: 'Email could not be sent' });
+        }
+    } catch (error: any) {
+        if (error.name === 'ZodError') {
+            return res.status(400).json({ message: error.issues[0].message });
+        }
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const resetPassword = async (req: Request, res: Response) => {
+    try {
+        const { password } = resetPasswordSchema.parse(req.body);
+
+        // Get hashed token
+        const resetPasswordToken = crypto.createHash('sha256').update(req.params.token).digest('hex');
+
+        const user = await User.findOne({
+            resetPasswordToken,
+            resetPasswordExpires: { $gt: Date.now() }
+        });
+
+        if (!user) {
+            return res.status(400).json({ message: 'Invalid or expired token' });
+        }
+
+        // Set new password
+        user.passwordHash = password;
+        user.resetPasswordToken = undefined;
+        user.resetPasswordExpires = undefined;
+
+        await user.save();
+
+        res.status(200).json({ status: 'success', message: 'Password reset successful' });
+    } catch (error: any) {
+        if (error.name === 'ZodError') {
+            return res.status(400).json({ message: error.issues[0].message });
+        }
+        res.status(500).json({ message: error.message });
     }
 };
 

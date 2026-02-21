@@ -15,6 +15,8 @@ export interface IUser extends Document {
     preferNickname: boolean;
     role: UserRole;
     refreshToken?: string;
+    resetPasswordToken?: string;
+    resetPasswordExpires?: Date;
     createdAt: Date;
     updatedAt: Date;
     matchPassword(enteredPassword: string): Promise<boolean>;
@@ -45,7 +47,9 @@ const UserSchema: Schema = new Schema({
         enum: Object.values(UserRole),
         default: UserRole.PLAIN
     },
-    refreshToken: String
+    refreshToken: String,
+    resetPasswordToken: String,
+    resetPasswordExpires: Date
 }, {
     timestamps: true
 });

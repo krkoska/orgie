@@ -59,6 +59,9 @@ const Login: React.FC = () => {
                         autoComplete="current-password"
                         required
                     />
+                    <div style={{ textAlign: 'right', marginTop: '5px' }}>
+                        <Link to="/forgot-password" style={{ fontSize: '0.9rem' }}>{t('forgotPassword')}</Link>
+                    </div>
                 </div>
                 <button type="submit">{t('login')}</button>
             </form>

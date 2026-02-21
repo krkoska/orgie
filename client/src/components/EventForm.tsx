@@ -31,6 +31,11 @@ export interface EventFormData {
     minAttendees: number;
     maxAttendees: number;
     activityType?: 'TEAM_SPORT';
+    seasons: {
+        name: string;
+        startDate: string;
+        endDate?: string;
+    }[];
 }
 
 interface EventFormProps {
@@ -54,6 +59,13 @@ const EventForm: React.FC<EventFormProps> = ({ initialData, onSubmit, submitButt
     const [minAttendees, setMinAttendees] = useState(initialData?.minAttendees || 0);
     const [maxAttendees, setMaxAttendees] = useState(initialData?.maxAttendees || 0);
     const [activityType, setActivityType] = useState<'TEAM_SPORT' | undefined>(initialData?.activityType);
+    const [seasons, setSeasons] = useState<EventFormData['seasons']>(
+        (initialData as any)?.seasons?.map((s: any) => ({
+            ...s,
+            startDate: new Date(s.startDate).toISOString().split('T')[0],
+            endDate: s.endDate ? new Date(s.endDate).toISOString().split('T')[0] : undefined
+        })) || []
+    );
 
     // Recurrence State
     const [frequency, setFrequency] = useState<RecurrenceFrequency>(initialData?.recurrence?.frequency || RecurrenceFrequency.DAILY);
@@ -63,6 +75,49 @@ const EventForm: React.FC<EventFormProps> = ({ initialData, onSubmit, submitButt
         setWeekDays(prev =>
             prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
         );
+    };
+
+    const addSeason = () => {
+        setSeasons(prev => [...prev, { name: '', startDate: '', endDate: '' }]);
+    };
+
+    const updateSeason = (idx: number, field: string, value: string) => {
+        setSeasons(prev => prev.map((s, i) => i === idx ? { ...s, [field]: value } : s));
+    };
+
+    const removeSeason = (idx: number) => {
+        setSeasons(prev => prev.filter((_, i) => i !== idx));
+    };
+
+    const validateLocalSeasons = () => {
+        if (seasons.length === 0) return true;
+
+        const sorted = [...seasons].sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+
+        for (let i = 0; i < sorted.length; i++) {
+            const s = sorted[i];
+            if (!s.name || !s.startDate) {
+                alert(t('allFieldsRequired') || 'All season fields are required');
+                return false;
+            }
+            const start = new Date(s.startDate);
+            const end = s.endDate ? new Date(s.endDate) : null;
+
+            if (end && start > end) {
+                alert(`${t('invalidDateError')}: ${s.name}`);
+                return false;
+            }
+
+            if (i > 0) {
+                const prev = sorted[i - 1];
+                const prevEnd = prev.endDate ? new Date(prev.endDate) : null;
+                if (!prevEnd || start <= prevEnd) {
+                    alert(t('overlapError') || 'Seasons overlap or missing intermediate end date');
+                    return false;
+                }
+            }
+        }
+        return true;
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -77,7 +132,11 @@ const EventForm: React.FC<EventFormProps> = ({ initialData, onSubmit, submitButt
             administrators: administrators.map(u => u._id),
             minAttendees,
             maxAttendees,
-            activityType
+            activityType,
+            seasons: seasons.map(s => ({
+                ...s,
+                endDate: s.endDate === '' ? undefined : s.endDate
+            }))
         };
 
         if (type === EventType.ONE_TIME) {
@@ -88,6 +147,8 @@ const EventForm: React.FC<EventFormProps> = ({ initialData, onSubmit, submitButt
                 ...(frequency === RecurrenceFrequency.WEEKLY ? { weekDays } : {})
             };
         }
+
+        if (!validateLocalSeasons()) return;
 
         await onSubmit(data);
     };
@@ -206,7 +267,72 @@ const EventForm: React.FC<EventFormProps> = ({ initialData, onSubmit, submitButt
                 </div>
             </div>
 
-            <button type="submit" className="btn-primary" style={{ marginTop: '1rem' }} disabled={loading}>
+            <div className="form-group" style={{ marginTop: '1.5rem', borderTop: '1px solid #eee', paddingTop: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                    <h3 style={{ margin: 0 }}>{t('seasons')}</h3>
+                    <button type="button" className="btn-secondary" onClick={addSeason}>
+                        + {t('addSeason')}
+                    </button>
+                </div>
+
+                {seasons.length === 0 ? (
+                    <p style={{ color: '#666', fontSize: '14px' }}>{t('noSeasons')}</p>
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                        {seasons.map((s, idx) => (
+                            <div key={idx} className="season-row" style={{
+                                display: 'grid',
+                                gridTemplateColumns: '2fr 1.5fr 1.5fr auto',
+                                gap: '0.5rem',
+                                alignItems: 'end',
+                                background: '#fdfdfd',
+                                padding: '0.75rem',
+                                borderRadius: '4px',
+                                border: '1px solid #f0f0f0'
+                            }}>
+                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                    <label style={{ fontSize: '12px' }}>{t('seasonName')}</label>
+                                    <input
+                                        type="text"
+                                        value={s.name}
+                                        onChange={(e) => updateSeason(idx, 'name', e.target.value)}
+                                        placeholder={t('seasonName')}
+                                        required
+                                    />
+                                </div>
+                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                    <label style={{ fontSize: '12px' }}>{t('startDate')}</label>
+                                    <input
+                                        type="date"
+                                        value={s.startDate}
+                                        onChange={(e) => updateSeason(idx, 'startDate', e.target.value)}
+                                        required
+                                    />
+                                </div>
+                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                    <label style={{ fontSize: '12px' }}>{t('endDate')}</label>
+                                    <input
+                                        type="date"
+                                        value={s.endDate || ''}
+                                        onChange={(e) => updateSeason(idx, 'endDate', e.target.value)}
+                                    />
+                                </div>
+                                <button
+                                    type="button"
+                                    className="btn-secondary"
+                                    onClick={() => removeSeason(idx)}
+                                    style={{ background: 'none', border: 'none', color: '#ef4444', padding: '0.5rem', cursor: 'pointer' }}
+                                    title={t('remove')}
+                                >
+                                    &times;
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            <button type="submit" className="btn-primary" style={{ marginTop: '1.5rem', width: '100%' }} disabled={loading}>
                 {loading ? t('loading') : submitButtonText}
             </button>
         </form>

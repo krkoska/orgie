@@ -48,6 +48,11 @@ interface Event {
     ownerId: User;
     administrators: User[];
     activityType?: 'TEAM_SPORT';
+    seasons: {
+        name: string;
+        startDate: string;
+        endDate?: string;
+    }[];
     attendees: Attendee[];
     guests: Guest[];
     minAttendees: number;
@@ -120,6 +125,8 @@ const EventDetailPage: React.FC = () => {
     const [isAddGuestModalOpen, setIsAddGuestModalOpen] = useState(false);
     const [guestFormData, setGuestFormData] = useState({ firstName: '', lastName: '' });
     const [selectedTermForGuest, setSelectedTermForGuest] = useState<string | null>(null);
+    const [selectedSeasonIdx, setSelectedSeasonIdx] = useState<number | null>(null);
+    const [showAllSeasonsStats, setShowAllSeasonsStats] = useState(false);
 
     const fetchEventDetails = async () => {
         try {
@@ -139,6 +146,25 @@ const EventDetailPage: React.FC = () => {
             await fetchArchivedTerms();
         }
     };
+
+    useEffect(() => {
+        if (event && selectedSeasonIdx === null && event.seasons && event.seasons.length > 0) {
+            // Find current season
+            const today = new Date();
+            const currentIdx = event.seasons.findIndex(s => {
+                const start = new Date(s.startDate);
+                const end = s.endDate ? new Date(s.endDate) : null;
+                return start <= today && (!end || today <= end);
+            });
+
+            if (currentIdx !== -1) {
+                setSelectedSeasonIdx(currentIdx);
+            } else {
+                // Default to the latest one if none is current
+                setSelectedSeasonIdx(event.seasons.length - 1);
+            }
+        }
+    }, [event, selectedSeasonIdx]);
 
     useEffect(() => {
         if (uuid) {
@@ -306,6 +332,42 @@ const EventDetailPage: React.FC = () => {
         }
     };
 
+    const filteredTerms = React.useMemo(() => {
+        if (!event?.seasons || event.seasons.length === 0 || selectedSeasonIdx === null) {
+            return terms;
+        }
+
+        const season = event.seasons[selectedSeasonIdx];
+        const start = new Date(season.startDate);
+        start.setHours(0, 0, 0, 0);
+        const end = season.endDate ? new Date(season.endDate) : new Date(8640000000000000);
+        if (season.endDate) end.setHours(0, 0, 0, 0);
+
+        return terms.filter(t => {
+            const d = new Date(t.date);
+            d.setHours(0, 0, 0, 0);
+            return d >= start && d <= end;
+        });
+    }, [terms, event, selectedSeasonIdx]);
+
+    const filteredArchivedTerms = React.useMemo(() => {
+        if (!event?.seasons || event.seasons.length === 0 || selectedSeasonIdx === null) {
+            return archivedTerms;
+        }
+
+        const season = event.seasons[selectedSeasonIdx];
+        const start = new Date(season.startDate);
+        start.setHours(0, 0, 0, 0);
+        const end = season.endDate ? new Date(season.endDate) : new Date(8640000000000000);
+        if (season.endDate) end.setHours(0, 0, 0, 0);
+
+        return archivedTerms.filter(t => {
+            const d = new Date(t.date);
+            d.setHours(0, 0, 0, 0);
+            return d >= start && d <= end;
+        });
+    }, [archivedTerms, event, selectedSeasonIdx]);
+
     const handleFetchArchivedTerms = async () => {
         if (!event) return;
         if (showArchive) {
@@ -344,6 +406,7 @@ const EventDetailPage: React.FC = () => {
     const globalStats = React.useMemo(() => {
         if (!archivedTerms.length) return [];
 
+        const termsToProcess = showAllSeasonsStats ? archivedTerms : filteredArchivedTerms;
         const statsMap = new Map<string, {
             id: string;
             kind: 'USER' | 'GUEST';
@@ -399,9 +462,9 @@ const EventDetailPage: React.FC = () => {
             });
         }
 
-        const totalTerms = archivedTerms.length;
+        const totalTerms = termsToProcess.length;
 
-        archivedTerms.forEach(term => {
+        termsToProcess.forEach(term => {
             // Create a set of attendee keys for this specific term to filter match stats
             const termAttendeeKeys = new Set(term.attendees.map(att => {
                 const id = typeof att.id === 'string' ? att.id : (att.id as any)._id;
@@ -497,16 +560,17 @@ const EventDetailPage: React.FC = () => {
             }
             return 0;
         });
-    }, [archivedTerms, event, sortConfig]);
+    }, [filteredArchivedTerms, archivedTerms, showAllSeasonsStats, event, sortConfig]);
 
     const statsHighlights = React.useMemo(() => {
-        if (!globalStats.length) return { maxAttendance: -1, maxWinPct: -1, maxLossPct: -1, maxWins: -1, maxLosses: -1 };
+        if (!globalStats.length) return { maxAttendance: -1, maxAttendancePct: -1, maxWinPct: -1, maxLossPct: -1, maxWins: -1, maxLosses: -1 };
 
         // Only consider those who actually played at least one game for win/loss highlights
         const playedStats = globalStats.filter(s => s.totalGames > 0);
 
         return {
             maxAttendance: Math.max(...globalStats.map(s => s.attendance)),
+            maxAttendancePct: Math.max(...globalStats.map(s => s.attendancePct)),
             maxWins: playedStats.length > 0 ? Math.max(...playedStats.map(s => s.wins)) : -1,
             maxLosses: playedStats.length > 0 ? Math.max(...playedStats.map(s => s.losses)) : -1,
             maxWinPct: playedStats.length > 0 ? Math.max(...playedStats.map(s => s.winPct)) : -1,
@@ -515,8 +579,9 @@ const EventDetailPage: React.FC = () => {
     }, [globalStats]);
 
     const filledStatsCount = React.useMemo(() => {
-        return archivedTerms.filter(t => t.statistics?.teams && t.statistics.teams.length > 0).length;
-    }, [archivedTerms]);
+        const termsToCount = showAllSeasonsStats ? archivedTerms : filteredArchivedTerms;
+        return termsToCount.filter(t => t.statistics?.teams && t.statistics.teams.length > 0).length;
+    }, [filteredArchivedTerms, archivedTerms, showAllSeasonsStats]);
 
     const handleBulkDeleteArchived = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -669,17 +734,34 @@ const EventDetailPage: React.FC = () => {
                             {event.type === 'ONE_TIME' ? t('oneTime') : t('recurring')} • {event.place}
                         </p>
                     </div>
-                    {canManage && (
-                        <button
-                            onClick={handleStartEdit}
-                            className="btn-primary"
-                            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-                            title={t('edit') || 'Edit'}
-                        >
-                            <Edit size={18} />
-                            {t('edit')}
-                        </button>
-                    )}
+                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                        {event.seasons && event.seasons.length > 0 && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <label style={{ fontSize: '14px', fontWeight: 600, color: '#4b5563', margin: 0 }}>{t('seasons')}:</label>
+                                <select
+                                    value={selectedSeasonIdx ?? ''}
+                                    onChange={(e) => setSelectedSeasonIdx(e.target.value === '' ? null : Number(e.target.value))}
+                                    className="custom-select"
+                                    style={{ width: 'auto', padding: '6px 32px 6px 12px', fontSize: '13px', minWidth: '150px' }}
+                                >
+                                    {event.seasons.map((s, idx) => (
+                                        <option key={idx} value={idx}>{s.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+                        {canManage && (
+                            <button
+                                onClick={handleStartEdit}
+                                className="btn-primary"
+                                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                                title={t('edit') || 'Edit'}
+                            >
+                                <Edit size={18} />
+                                {t('edit')}
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -783,21 +865,21 @@ const EventDetailPage: React.FC = () => {
 
                 {viewMode === 'cards' ? (
                     // Card View
-                    terms.length === 0 ? (
+                    filteredTerms.length === 0 ? (
                         <p style={{ color: '#666' }}>{t('noTerms') || 'No terms scheduled yet.'}</p>
                     ) : (
                         <>
                             <div className="groups-grid">
-                                {terms.slice(0, visibleCardCount).map(term => renderTermCard(term))}
+                                {filteredTerms.slice(0, visibleCardCount).map(term => renderTermCard(term))}
                             </div>
-                            {visibleCardCount < terms.length && (
+                            {visibleCardCount < filteredTerms.length && (
                                 <div style={{ textAlign: 'center', marginTop: '2rem' }}>
                                     <button
                                         onClick={() => setVisibleCardCount(prev => prev + 20)}
                                         className="btn-secondary"
                                         style={{ padding: '0.75rem 2rem' }}
                                     >
-                                        {t('loadMore') || 'Load More'} ({terms.length - visibleCardCount} {t('remaining') || 'remaining'})
+                                        {t('loadMore') || 'Load More'} ({filteredTerms.length - visibleCardCount} {t('remaining') || 'remaining'})
                                     </button>
                                 </div>
                             )}
@@ -806,7 +888,7 @@ const EventDetailPage: React.FC = () => {
                 ) : (
                     // Matrix View
                     <TermAttendanceMatrix
-                        terms={terms}
+                        terms={filteredTerms}
                         event={event}
                         onAttendanceToggle={handleAttendanceToggle}
                         onAddSelf={handleToggleEventAttendance}
@@ -825,14 +907,25 @@ const EventDetailPage: React.FC = () => {
                         {t('statistics')}{' '}
                         {showStats && (
                             <span
-                                title={t('statsTooltip').replace('{filled}', filledStatsCount.toString()).replace('{total}', archivedTerms.length.toString())}
+                                title={t('statsTooltip').replace('{filled}', filledStatsCount.toString()).replace('{total}', (showAllSeasonsStats ? archivedTerms : filteredArchivedTerms).length.toString())}
                                 style={{ cursor: 'help' }}
                             >
-                                ({filledStatsCount}/{archivedTerms.length})
+                                ({filledStatsCount}/{(showAllSeasonsStats ? archivedTerms : filteredArchivedTerms).length})
                             </span>
                         )}
                     </h2>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                        {event.seasons && event.seasons.length > 0 && showStats && (
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '14px', marginRight: '1rem', cursor: 'pointer', userSelect: 'none' }}>
+                                <input
+                                    type="checkbox"
+                                    checked={showAllSeasonsStats}
+                                    onChange={(e) => setShowAllSeasonsStats(e.target.checked)}
+                                    style={{ width: '16px', height: '16px' }}
+                                />
+                                {t('allSeasons')}
+                            </label>
+                        )}
                         <button
                             onClick={handleFetchStats}
                             className="btn-secondary"
@@ -858,7 +951,7 @@ const EventDetailPage: React.FC = () => {
                                         { key: 'losses', label: t('losses'), align: 'center', teamOnly: true },
                                         { key: 'winPct', label: t('winPercentage'), align: 'center', teamOnly: true },
                                         { key: 'lossPct', label: t('lossPercentage'), align: 'center', teamOnly: true }
-                                    ].filter(col => !col.teamOnly || event?.activityType === 'TEAM_SPORT' || (event as any).activityType === 'TEAM_SPORT').map(col => (
+                                    ].filter(col => !col.teamOnly || event.activityType === 'TEAM_SPORT').map(col => (
                                         <th
                                             key={col.key}
                                             onClick={() => handleSort(col.key)}
@@ -898,13 +991,13 @@ const EventDetailPage: React.FC = () => {
                                                 color: s.attendance > 0 && s.attendance === statsHighlights.maxAttendance ? '#10b981' : 'inherit',
                                                 fontWeight: s.attendance > 0 && s.attendance === statsHighlights.maxAttendance ? 600 : 400
                                             }}>
-                                                {s.attendance}/{archivedTerms.length}
+                                                {s.attendance}/{showAllSeasonsStats ? archivedTerms.length : filteredArchivedTerms.length}
                                             </td>
                                             <td style={{
                                                 padding: '12px 16px',
                                                 textAlign: 'center',
-                                                color: s.attendancePct > 0 && s.attendance === statsHighlights.maxAttendance ? '#10b981' : 'inherit',
-                                                fontWeight: s.attendancePct > 0 && s.attendance === statsHighlights.maxAttendance ? 600 : 400
+                                                color: s.attendancePct > 0 && s.attendancePct === statsHighlights.maxAttendancePct ? '#10b981' : 'inherit',
+                                                fontWeight: s.attendancePct > 0 && s.attendancePct === statsHighlights.maxAttendancePct ? 600 : 400
                                             }}>
                                                 {s.attendancePct.toFixed(1)}%
                                             </td>
@@ -1028,7 +1121,7 @@ const EventDetailPage: React.FC = () => {
                         ) : (
                             archivedViewMode === 'matrix' ? (
                                 <TermAttendanceMatrix
-                                    terms={archivedTerms}
+                                    terms={filteredArchivedTerms}
                                     event={event!}
                                     onAttendanceToggle={handleAttendanceToggle}
                                     onAddSelf={handleToggleEventAttendance}
@@ -1202,30 +1295,32 @@ const EventDetailPage: React.FC = () => {
                 </form>
             </Modal>
 
-            {statsTerm && (
-                <TermStatsModal
-                    termId={statsTerm._id}
-                    participants={statsTerm.attendees.map((a: any) => {
-                        let name = 'Unknown';
-                        if (a.kind === 'USER' && typeof a.id === 'object' && a.id !== null) {
-                            name = (a.id as User).preferNickname && (a.id as User).nickname ? (a.id as User).nickname! : `${(a.id as User).firstName} ${(a.id as User).lastName}`;
-                        } else if (a.kind === 'GUEST' && a.id) {
-                            const guestId = typeof a.id === 'string' ? a.id : (a.id as any)._id;
-                            const guest = event?.guests.find(g => g._id === guestId);
-                            if (guest) name = `${guest.firstName} ${guest.lastName}`;
-                        }
-                        return { id: typeof a.id === 'string' ? a.id : (a.id as any)._id, kind: a.kind, name };
-                    })}
-                    initialStats={statsTerm.statistics}
-                    onClose={() => setStatsTerm(null)}
-                    onSave={() => {
-                        setStatsTerm(null);
-                        fetchEventDetails(); // Refresh to show new stats if needed
-                        fetchArchivedTerms(); // Refresh archive to show new stats
-                    }}
-                />
-            )}
-        </div>
+            {
+                statsTerm && (
+                    <TermStatsModal
+                        termId={statsTerm._id}
+                        participants={statsTerm.attendees.map((a: any) => {
+                            let name = 'Unknown';
+                            if (a.kind === 'USER' && typeof a.id === 'object' && a.id !== null) {
+                                name = (a.id as User).preferNickname && (a.id as User).nickname ? (a.id as User).nickname! : `${(a.id as User).firstName} ${(a.id as User).lastName}`;
+                            } else if (a.kind === 'GUEST' && a.id) {
+                                const guestId = typeof a.id === 'string' ? a.id : (a.id as any)._id;
+                                const guest = event?.guests.find(g => g._id === guestId);
+                                if (guest) name = `${guest.firstName} ${guest.lastName}`;
+                            }
+                            return { id: typeof a.id === 'string' ? a.id : (a.id as any)._id, kind: a.kind, name };
+                        })}
+                        initialStats={statsTerm.statistics}
+                        onClose={() => setStatsTerm(null)}
+                        onSave={() => {
+                            setStatsTerm(null);
+                            fetchEventDetails(); // Refresh to show new stats if needed
+                            fetchArchivedTerms(); // Refresh archive to show new stats
+                        }}
+                    />
+                )
+            }
+        </div >
     );
 };
 
