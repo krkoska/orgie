@@ -126,6 +126,8 @@ const EventDetailPage: React.FC = () => {
     const [guestFormData, setGuestFormData] = useState({ firstName: '', lastName: '' });
     const [selectedTermForGuest, setSelectedTermForGuest] = useState<string | null>(null);
     const [selectedSeasonIdx, setSelectedSeasonIdx] = useState<number | null>(null);
+    const [isSeasonDropdownOpen, setIsSeasonDropdownOpen] = useState(false);
+    const seasonSwitcherRef = React.useRef<HTMLDivElement>(null);
     const [showAllSeasonsStats, setShowAllSeasonsStats] = useState(false);
 
     const fetchEventDetails = async () => {
@@ -171,6 +173,16 @@ const EventDetailPage: React.FC = () => {
             fetchEventDetails();
         }
     }, [uuid]);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (seasonSwitcherRef.current && !seasonSwitcherRef.current.contains(event.target as Node)) {
+                setIsSeasonDropdownOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     const handleStartEdit = () => {
         setIsEditModalOpen(true);
@@ -372,6 +384,23 @@ const EventDetailPage: React.FC = () => {
         });
     }, [archivedTerms, event, selectedSeasonIdx]);
 
+    const allSeasonsArchivedTerms = React.useMemo(() => {
+        if (!event?.seasons || event.seasons.length === 0) {
+            return archivedTerms;
+        }
+        return archivedTerms.filter(t => {
+            const termDate = new Date(t.date);
+            termDate.setHours(0, 0, 0, 0);
+            return event.seasons.some(season => {
+                const start = new Date(season.startDate);
+                start.setHours(0, 0, 0, 0);
+                const end = season.endDate ? new Date(season.endDate) : new Date(8640000000000000);
+                if (season.endDate) end.setHours(23, 59, 59, 999);
+                return termDate >= start && termDate <= end;
+            });
+        });
+    }, [archivedTerms, event?.seasons]);
+
     const handleFetchArchivedTerms = async () => {
         if (!event) return;
         if (showArchive) {
@@ -410,7 +439,7 @@ const EventDetailPage: React.FC = () => {
     const globalStats = React.useMemo(() => {
         if (!archivedTerms.length) return [];
 
-        const termsToProcess = showAllSeasonsStats ? archivedTerms : filteredArchivedTerms;
+        const termsToProcess = showAllSeasonsStats ? allSeasonsArchivedTerms : filteredArchivedTerms;
         const statsMap = new Map<string, {
             id: string;
             kind: 'USER' | 'GUEST';
@@ -583,7 +612,7 @@ const EventDetailPage: React.FC = () => {
     }, [globalStats]);
 
     const filledStatsCount = React.useMemo(() => {
-        const termsToCount = showAllSeasonsStats ? archivedTerms : filteredArchivedTerms;
+        const termsToCount = showAllSeasonsStats ? allSeasonsArchivedTerms : filteredArchivedTerms;
         return termsToCount.filter(t => t.statistics?.teams && t.statistics.teams.length > 0).length;
     }, [filteredArchivedTerms, archivedTerms, showAllSeasonsStats]);
 
@@ -743,18 +772,35 @@ const EventDetailPage: React.FC = () => {
                     </div>
                     <div className="event-actions">
                         {event.seasons && event.seasons.length > 0 && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                <label style={{ fontSize: '14px', fontWeight: 600, color: '#4b5563', margin: 0 }}>{t('seasons')}:</label>
-                                <select
-                                    value={selectedSeasonIdx ?? ''}
-                                    onChange={(e) => setSelectedSeasonIdx(e.target.value === '' ? null : Number(e.target.value))}
-                                    className="custom-select"
-                                    style={{ width: 'auto', padding: '6px 32px 6px 12px', fontSize: '13px', minWidth: '150px' }}
+                            <div className="season-switcher-container" ref={seasonSwitcherRef}>
+                                <button
+                                    className={`season-switcher-trigger ${isSeasonDropdownOpen ? 'active' : ''}`}
+                                    onClick={() => setIsSeasonDropdownOpen(!isSeasonDropdownOpen)}
                                 >
-                                    {event.seasons.map((s, idx) => (
-                                        <option key={idx} value={idx}>{s.name}</option>
-                                    ))}
-                                </select>
+                                    <Calendar size={18} className="icon" />
+                                    <span>{selectedSeasonIdx !== null ? event.seasons[selectedSeasonIdx].name : t('selectSeason')}</span>
+                                    <ChevronDown size={14} className="icon" />
+                                </button>
+                                {isSeasonDropdownOpen && (
+                                    <div className="season-dropdown">
+                                        {event.seasons.map((s, idx) => (
+                                            <button
+                                                key={idx}
+                                                className={`season-dropdown-item ${selectedSeasonIdx === idx ? 'active' : ''}`}
+                                                onClick={() => {
+                                                    setSelectedSeasonIdx(idx);
+                                                    setIsSeasonDropdownOpen(false);
+                                                }}
+                                            >
+                                                <span style={{ fontWeight: 600 }}>{s.name}</span>
+                                                <span className="date">
+                                                    {new Date(s.startDate).toLocaleDateString()}
+                                                    {s.endDate ? ` - ${new Date(s.endDate).toLocaleDateString()}` : ''}
+                                                </span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         )}
                         {canManage && (
@@ -821,7 +867,7 @@ const EventDetailPage: React.FC = () => {
             <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-                        <h2 style={{ margin: 0 }}>{t('terms') || 'Terms'} ({terms.length})</h2>
+                        <h2 style={{ margin: 0 }}>{t('terms') || 'Terms'} ({filteredTerms.length})</h2>
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
                             <button
                                 onClick={() => setViewMode('cards')}
@@ -914,10 +960,10 @@ const EventDetailPage: React.FC = () => {
                         {t('statistics')}{' '}
                         {showStats && (
                             <span
-                                title={t('statsTooltip').replace('{filled}', filledStatsCount.toString()).replace('{total}', (showAllSeasonsStats ? archivedTerms : filteredArchivedTerms).length.toString())}
+                                title={t('statsTooltip').replace('{filled}', filledStatsCount.toString()).replace('{total}', (showAllSeasonsStats ? allSeasonsArchivedTerms : filteredArchivedTerms).length.toString())}
                                 style={{ cursor: 'help' }}
                             >
-                                ({filledStatsCount}/{(showAllSeasonsStats ? archivedTerms : filteredArchivedTerms).length})
+                                ({filledStatsCount}/{(showAllSeasonsStats ? allSeasonsArchivedTerms : filteredArchivedTerms).length})
                             </span>
                         )}
                     </h2>
@@ -1059,7 +1105,7 @@ const EventDetailPage: React.FC = () => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
                         <h2 style={{ fontSize: '1.5rem', fontWeight: 600, color: '#1f2937', margin: 0 }}>
-                            {t('archivedTerms')} {showArchive && `(${archivedTerms.length})`}
+                            {t('archivedTerms')} {showArchive && `(${filteredArchivedTerms.length})`}
                         </h2>
                         {showArchive && (
                             <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -1099,7 +1145,7 @@ const EventDetailPage: React.FC = () => {
                         )}
                     </div>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        {canManage && showArchive && archivedTerms.length > 0 && (
+                        {canManage && showArchive && filteredArchivedTerms.length > 0 && (
                             <button
                                 onClick={() => setIsBulkDeleteModalOpen(true)}
                                 className="btn-secondary"
@@ -1123,7 +1169,7 @@ const EventDetailPage: React.FC = () => {
 
                 {showArchive && (
                     <div style={{ padding: archivedViewMode === 'matrix' ? '1rem' : '0', background: archivedViewMode === 'matrix' ? '#f9fafb' : 'transparent', borderRadius: '12px' }}>
-                        {archivedTerms.length === 0 ? (
+                        {filteredArchivedTerms.length === 0 ? (
                             <p style={{ color: '#666' }}>{t('noArchivedTerms')}</p>
                         ) : (
                             archivedViewMode === 'matrix' ? (

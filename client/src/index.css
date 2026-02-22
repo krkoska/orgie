@@ -158,19 +158,119 @@ button:hover {
   transition: opacity 0.2s, transform 0.2s;
 }
 
+.season-switcher-container {
+  position: relative;
+  display: inline-block;
+}
+
+.season-switcher-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.8rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #1f2937;
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.season-switcher-trigger:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  transform: translateY(-1px);
+}
+
+.season-switcher-trigger .icon {
+  color: #64748b;
+  transition: transform 0.2s ease;
+}
+
+.season-switcher-trigger.active .icon {
+  transform: rotate(180deg);
+}
+
+.season-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 220px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  z-index: 1000;
+  overflow: hidden;
+  animation: slideInDown 0.2s ease;
+}
+
+@keyframes slideInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.season-dropdown-item {
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  background: none;
+  text-align: left;
+  font-size: 0.9rem;
+  color: #4b5563;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.season-dropdown-item:hover {
+  background: #f1f5f9;
+  color: #2563eb;
+}
+
+.season-dropdown-item.active {
+  background: #eff6ff;
+  color: #2563eb;
+  font-weight: 600;
+}
+
+.season-dropdown-item .date {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.season-dropdown-item.active .date {
+  color: #60a5fa;
+}
+
+/* Keep for other selects but clean up */
 .custom-select {
   appearance: none;
   background-color: white;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  padding: 0.75rem 1rem;
-  font-size: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.6rem 2.5rem 0.6rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #1f2937;
   width: 100%;
   cursor: pointer;
-  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
   background-repeat: no-repeat;
-  background-position: right 0.7rem center;
-  background-size: 1em;
+  background-position: right 0.75rem center;
+  background-size: 1.1em;
+  transition: all 0.2s;
 }
 
 /* Responsive Utilities */
@@ -297,27 +397,27 @@ input[type="time"] {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.7);
+  background-color: rgba(0, 0, 0, 0.75);
   display: flex;
   justify-content: center;
   align-items: center;
-  /* Center vertically and horizontally */
   z-index: 10000;
-  backdrop-filter: blur(8px);
-  animation: fadeInOverlay 0.3s ease-out;
+  animation: fadeInOverlay 0.2s ease-out;
+  overscroll-behavior: none;
+  touch-action: none;
+  /* Deep isolation to prevent background repaint interference */
+  isolation: isolate;
 }
 
 .modal-content {
   position: relative;
-  /* Ensure it's the anchor for absolute children */
   background: white;
   padding: 2rem;
   border-radius: 16px;
   width: 90%;
   max-width: 700px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
-  transform: scale(0.9);
-  animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  animation: popInSimplified 0.2s ease-out;
   max-height: 90vh;
   display: flex;
   flex-direction: column;
@@ -378,6 +478,7 @@ input[type="time"] {
   line-height: 1.5;
   overflow-y: auto;
   flex: 1;
+  overscroll-behavior: contain;
 }
 
 .modal-footer {
@@ -431,15 +532,25 @@ input[type="time"] {
   }
 }
 
-@keyframes popIn {
+@keyframes popInSimplified {
   from {
     opacity: 0;
-    transform: scale(0.8);
+    transform: translateY(10px);
   }
 
   to {
     opacity: 1;
-    transform: scale(1);
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInOverlay {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
   }
 }
 
