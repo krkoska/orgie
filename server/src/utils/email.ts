@@ -1,4 +1,4 @@
-import nodemailer from 'nodemailer';
+import { EmailClient } from '@azure/communication-email';
 import logger from './logger';
 
 interface EmailOptions {
@@ -9,30 +9,40 @@ interface EmailOptions {
 }
 
 const sendEmail = async (options: EmailOptions) => {
-    // Create a transporter
-    const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST || 'localhost',
-        port: parseInt(process.env.SMTP_PORT || '1025'),
-        auth: {
-            user: process.env.SMTP_USER,
-            pass: process.env.SMTP_PASS
-        }
-    });
+    const fromEmail = process.env.FROM_EMAIL;
+    const fromName = process.env.FROM_NAME || 'Orgie';
+    const connectionString = process.env.AZURE_EMAIL_CONNECTION_STRING;
 
-    const mailOptions = {
-        from: `${process.env.FROM_NAME || 'Orgie'} <${process.env.FROM_EMAIL || 'noreply@orgie.cz'}>`,
-        to: options.email,
-        subject: options.subject,
-        text: options.message,
-        html: options.html
-    };
+    if (!connectionString) {
+        logger.error('AZURE_EMAIL_CONNECTION_STRING is not defined in environment variables');
+        throw new Error('Email service configuration missing');
+    }
+
+    if (!fromEmail) {
+        logger.error('FROM_EMAIL is not defined in environment variables');
+        throw new Error('From email address missing');
+    }
 
     try {
-        const info = await transporter.sendMail(mailOptions);
-        logger.info('Email sent: %s', info.messageId);
+        const client = new EmailClient(connectionString);
+        const emailMessage = {
+            senderAddress: fromEmail,
+            content: {
+                subject: options.subject,
+                plainText: options.message,
+                html: options.html,
+            },
+            recipients: {
+                to: [{ address: options.email }],
+            },
+        };
+
+        const poller = await client.beginSend(emailMessage);
+        const result = await poller.pollUntilDone();
+        logger.info('Email sent via Azure SDK: %s', result.id);
     } catch (error) {
-        logger.error('Error sending email', error);
-        throw new Error('Email could not be sent');
+        logger.error('Error sending email via Azure SDK', error);
+        throw new Error('Azure Email could not be sent');
     }
 };
 
