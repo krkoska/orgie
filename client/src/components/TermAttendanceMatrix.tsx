@@ -65,16 +65,8 @@ const TermAttendanceMatrix: React.FC<TermAttendanceMatrixProps> = ({
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
-    // Filter terms based on showPast prop
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
 
-    const filteredTerms = terms
-        .filter(term => {
-            const termDate = new Date(term.date);
-            termDate.setHours(0, 0, 0, 0);
-            return showPast ? termDate < today : termDate >= today;
-        })
+    const filteredTerms = [...terms]
         .sort((a, b) => {
             const timeA = new Date(a.date).getTime();
             const timeB = new Date(b.date).getTime();

@@ -299,17 +299,30 @@ export const getEventByUuid = async (req: Request, res: Response) => {
         }
 
         // Fetch active terms (today and future)
-        const today = new Date();
+        const now = new Date();
+        const today = new Date(now);
         today.setHours(0, 0, 0, 0);
 
+        // Find terms that are in the future OR today but haven't ended yet
         const terms = await Term.find({
             eventId: event._id,
             date: { $gte: today }
         }).sort({ date: 1 });
 
-        const originalTermsAttendees = terms.map(t => JSON.parse(JSON.stringify(t.attendees)));
+        const activeTerms = terms.filter(t => {
+            // Combine t.date (YYYY-MM-DD) and t.endTime (HH:mm) for robust comparison
+            const datePart = new Date(t.date).toISOString().split('T')[0];
+            const termEndTime = new Date(`${datePart}T${t.endTime}:00`);
 
-        const populatedTerms = await Promise.all(terms.map((t, tIdx) =>
+            // Note: If the server and client are in different timezones, we might need more effort.
+            // But for a local dev or a server configured with a TZ, this should be consistent.
+            // Let's use a simpler approach that just compares the derived timestamp.
+            return now < termEndTime;
+        });
+
+        const originalTermsAttendees = activeTerms.map(t => JSON.parse(JSON.stringify(t.attendees)));
+
+        const populatedTerms = await Promise.all(activeTerms.map((t, tIdx) =>
             Term.findById(t._id).populate({
                 path: 'attendees.id',
                 model: 'User',
@@ -566,17 +579,29 @@ export const getArchivedTerms = async (req: Request, res: Response) => {
             return res.status(404).json({ message: 'Event not found' });
         }
 
-        const today = new Date();
+        const now = new Date();
+        const today = new Date(now);
         today.setHours(0, 0, 0, 0);
 
-        const terms = await Term.find({
+        const nextDay = new Date(today);
+        nextDay.setDate(nextDay.getDate() + 1);
+
+        // Find terms that are in the past (before today) OR today but have already ended
+        const allTermsBeforeOrToday = await Term.find({
             eventId: event._id,
-            date: { $lt: today }
+            date: { $lt: nextDay }
         }).sort({ date: -1 });
 
-        const originalAttendeesPerTerm = terms.map((t: any) => JSON.parse(JSON.stringify(t.attendees)));
+        const archivedTerms = allTermsBeforeOrToday.filter(t => {
+            const datePart = new Date(t.date).toISOString().split('T')[0];
+            const termEndTime = new Date(`${datePart}T${t.endTime}:00`);
 
-        const populatedTerms = await Promise.all(terms.map((t: any) =>
+            return now >= termEndTime;
+        });
+
+        const originalAttendeesPerTerm = archivedTerms.map((t: any) => JSON.parse(JSON.stringify(t.attendees)));
+
+        const populatedTerms = await Promise.all(archivedTerms.map((t: any) =>
             Term.findById(t._id).populate({
                 path: 'attendees.id',
                 model: 'User',

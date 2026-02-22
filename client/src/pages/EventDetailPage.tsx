@@ -341,12 +341,14 @@ const EventDetailPage: React.FC = () => {
         const start = new Date(season.startDate);
         start.setHours(0, 0, 0, 0);
         const end = season.endDate ? new Date(season.endDate) : new Date(8640000000000000);
-        if (season.endDate) end.setHours(0, 0, 0, 0);
+        if (season.endDate) end.setHours(23, 59, 59, 999);
 
         return terms.filter(t => {
             const d = new Date(t.date);
-            d.setHours(0, 0, 0, 0);
-            return d >= start && d <= end;
+            const dateStr = d.toISOString().split('T')[0];
+            const compareDate = new Date(dateStr);
+            compareDate.setHours(0, 0, 0, 0);
+            return compareDate >= start && compareDate <= end;
         });
     }, [terms, event, selectedSeasonIdx]);
 
@@ -359,12 +361,14 @@ const EventDetailPage: React.FC = () => {
         const start = new Date(season.startDate);
         start.setHours(0, 0, 0, 0);
         const end = season.endDate ? new Date(season.endDate) : new Date(8640000000000000);
-        if (season.endDate) end.setHours(0, 0, 0, 0);
+        if (season.endDate) end.setHours(23, 59, 59, 999);
 
         return archivedTerms.filter(t => {
             const d = new Date(t.date);
-            d.setHours(0, 0, 0, 0);
-            return d >= start && d <= end;
+            const dateStr = d.toISOString().split('T')[0];
+            const compareDate = new Date(dateStr);
+            compareDate.setHours(0, 0, 0, 0);
+            return compareDate >= start && compareDate <= end;
         });
     }, [archivedTerms, event, selectedSeasonIdx]);
 
@@ -1131,7 +1135,7 @@ const EventDetailPage: React.FC = () => {
                                 />
                             ) : (
                                 <div className="groups-grid">
-                                    {archivedTerms.map(term => renderTermCard(term, true))}
+                                    {filteredArchivedTerms.map(term => renderTermCard(term, true))}
                                 </div>
                             )
                         )}
