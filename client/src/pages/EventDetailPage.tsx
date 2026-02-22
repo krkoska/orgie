@@ -724,23 +724,26 @@ const EventDetailPage: React.FC = () => {
                     ← {t('back') || 'Back to Dashboard'}
                 </button>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
+                <div className="event-header">
+                    <div className="event-info">
                         <h1 style={{ margin: 0, marginBottom: '0.5rem' }}>{event.name}</h1>
                         {event.activityType && (
                             <div style={{ marginBottom: '0.5rem' }}>
-                                <span style={{ background: '#f59e0b', color: 'white', fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: '10px', textTransform: 'uppercase' }}>
+                                <span className="event-badge badge-warning">
                                     {t('teamSport') || 'Team Sport'}
                                 </span>
                             </div>
                         )}
-                        <p style={{ margin: 0, color: '#666', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            {event.type === 'ONE_TIME' ? t('oneTime') : t('recurring')} • {event.place}
+                        <p style={{ margin: 0, color: '#666', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', fontSize: '14px' }}>
+                            <span className="event-badge badge-info" style={{ textTransform: 'none' }}>
+                                {event.type === 'ONE_TIME' ? t('oneTime') : t('recurring')}
+                            </span>
+                            <span>• {event.place}</span>
                         </p>
                     </div>
-                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                    <div className="event-actions">
                         {event.seasons && event.seasons.length > 0 && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                                 <label style={{ fontSize: '14px', fontWeight: 600, color: '#4b5563', margin: 0 }}>{t('seasons')}:</label>
                                 <select
                                     value={selectedSeasonIdx ?? ''}
@@ -758,7 +761,7 @@ const EventDetailPage: React.FC = () => {
                             <button
                                 onClick={handleStartEdit}
                                 className="btn-primary"
-                                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', whiteSpace: 'nowrap' }}
                                 title={t('edit') || 'Edit'}
                             >
                                 <Edit size={18} />
@@ -816,8 +819,8 @@ const EventDetailPage: React.FC = () => {
             </div>
 
             <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
                         <h2 style={{ margin: 0 }}>{t('terms') || 'Terms'} ({terms.length})</h2>
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
                             <button
@@ -858,7 +861,7 @@ const EventDetailPage: React.FC = () => {
                         <button
                             onClick={() => setIsTermModalOpen(true)}
                             className="btn-primary"
-                            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', whiteSpace: 'nowrap' }}
                             title={t('generateTerms') || 'Generate Terms'}
                         >
                             <Calendar size={18} />
@@ -1186,9 +1189,11 @@ const EventDetailPage: React.FC = () => {
                             required
                         />
                     </div>
-                    <button type="submit" className="btn-primary" style={{ marginTop: '1rem' }}>
-                        {t('generate') || 'Generate'}
-                    </button>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
+                        <button type="submit" className="btn-primary">
+                            {t('generate') || 'Generate'}
+                        </button>
+                    </div>
                 </form>
             </Modal>
 
@@ -1232,7 +1237,7 @@ const EventDetailPage: React.FC = () => {
                             required
                         />
                     </div>
-                    <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem' }}>
+                    <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
                         <button
                             type="submit"
                             className="btn-primary"
@@ -1291,7 +1296,7 @@ const EventDetailPage: React.FC = () => {
                             required
                         />
                     </div>
-                    <div className="modal-footer" style={{ marginTop: '1.5rem', justifyContent: 'flex-start' }}>
+                    <div className="modal-footer" style={{ marginTop: '1.5rem', justifyContent: 'flex-end' }}>
                         <button type="submit" className="btn-primary">
                             {t('addGuest') || 'Add Guest'}
                         </button>

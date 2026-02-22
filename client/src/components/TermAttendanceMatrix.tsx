@@ -80,7 +80,8 @@ const TermAttendanceMatrix: React.FC<TermAttendanceMatrixProps> = ({
 
     // Calculate max visible terms based on window width
     const getMaxVisibleTerms = () => {
-        if (windowWidth < 640) return 2;  // Mobile
+        if (windowWidth < 450) return 1;  // Mobile - show 1 full col + sticky
+        if (windowWidth < 640) return 2;  // Small tablet
         if (windowWidth < 768) return 4;  // Small tablet
         if (windowWidth < 1024) return 6; // Tablet
         if (windowWidth < 1280) return 8; // Small desktop

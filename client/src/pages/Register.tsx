@@ -93,7 +93,7 @@ const Register: React.FC = () => {
                     <label htmlFor="confirmPassword">{t('confirmPassword') || 'Confirm Password'}</label>
                     <input type="password" id="confirmPassword" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} required autoComplete="new-password" />
                 </div>
-                <button type="submit">{t('register')}</button>
+                <button type="submit" className="btn-full">{t('register')}</button>
             </form>
             <p>{t('alreadyHaveAccount')} <Link to={`/login?redirect=${encodeURIComponent(redirectPath)}`}>{t('login')}</Link></p>
         </div>

@@ -46,7 +46,7 @@ const ForgotPassword: React.FC = () => {
                             required
                         />
                     </div>
-                    <button type="submit" disabled={loading}>
+                    <button type="submit" className="btn-full" disabled={loading}>
                         {loading ? t('loading') : t('sendResetLink')}
                     </button>
                 </form>

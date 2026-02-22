@@ -332,9 +332,11 @@ const EventForm: React.FC<EventFormProps> = ({ initialData, onSubmit, submitButt
                 )}
             </div>
 
-            <button type="submit" className="btn-primary" style={{ marginTop: '1.5rem', width: '100%' }} disabled={loading}>
-                {loading ? t('loading') : submitButtonText}
-            </button>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
+                <button type="submit" className="btn-primary" disabled={loading}>
+                    {loading ? t('loading') : submitButtonText}
+                </button>
+            </div>
         </form>
     );
 };

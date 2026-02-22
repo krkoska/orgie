@@ -110,7 +110,7 @@ const Profile: React.FC = () => {
                     <input type="password" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} required={!!formData.password} />
                 </div>
 
-                <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
+                <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem', justifyContent: 'flex-end' }}>
                     <button type="submit" className="btn-primary" disabled={loading}>
                         {loading ? t('loading') || 'Loading...' : t('updateProfile') || 'Update Profile'}
                     </button>

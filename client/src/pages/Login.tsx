@@ -63,7 +63,7 @@ const Login: React.FC = () => {
                         <Link to="/forgot-password" style={{ fontSize: '0.9rem' }}>{t('forgotPassword')}</Link>
                     </div>
                 </div>
-                <button type="submit">{t('login')}</button>
+                <button type="submit" className="btn-full">{t('login')}</button>
             </form>
             <p>{t('dontHaveAccount')} <Link to={`/register?redirect=${encodeURIComponent(redirectPath)}`}>{t('register')}</Link></p>
         </div>
