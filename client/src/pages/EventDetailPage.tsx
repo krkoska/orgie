@@ -10,6 +10,7 @@ import EventForm, { EventType, RecurrenceFrequency, type EventFormData } from '.
 import TermAttendanceMatrix from '../components/TermAttendanceMatrix';
 import TermStatsModal from '../components/TermStatsModal';
 import { Edit, Calendar, Trash2, Grid, Table, UserPlus, UserCheck, Trophy, ChevronUp, ChevronDown } from 'lucide-react';
+import { getUniqueAttendees } from '../utils/attendance';
 
 interface User {
     _id: string;
@@ -129,6 +130,8 @@ const EventDetailPage: React.FC = () => {
     const [isSeasonDropdownOpen, setIsSeasonDropdownOpen] = useState(false);
     const seasonSwitcherRef = React.useRef<HTMLDivElement>(null);
     const [showAllSeasonsStats, setShowAllSeasonsStats] = useState(false);
+
+    // Unified unique attendee logic is now in ../utils/attendance.ts
 
     const fetchEventDetails = async () => {
         try {
@@ -498,14 +501,15 @@ const EventDetailPage: React.FC = () => {
         const totalTerms = termsToProcess.length;
 
         termsToProcess.forEach(term => {
+            const uniqueTermAttendees = getUniqueAttendees(term.attendees);
             // Create a set of attendee keys for this specific term to filter match stats
-            const termAttendeeKeys = new Set(term.attendees.map(att => {
+            const termAttendeeKeys = new Set(uniqueTermAttendees.map(att => {
                 const id = typeof att.id === 'string' ? att.id : (att.id as any)._id;
                 return `${att.kind}-${id}`;
             }));
 
             // Count attendance
-            term.attendees.forEach(att => {
+            uniqueTermAttendees.forEach(att => {
                 const id = typeof att.id === 'string' ? att.id : (att.id as any)._id;
                 const key = `${att.kind}-${id}`;
                 if (!statsMap.has(key)) {
@@ -658,8 +662,10 @@ const EventDetailPage: React.FC = () => {
     const daysMap = [t('Sun'), t('Mon'), t('Tue'), t('Wed'), t('Thu'), t('Fri'), t('Sat')];
 
     const renderTermCard = (term: Term, isArchived: boolean = false) => {
+        const uniqueAttendees = getUniqueAttendees(term.attendees);
+        const attendanceCount = uniqueAttendees.length;
         const isAttendingTerm = !!user && term.attendees.some(a => a.kind === 'USER' && (typeof a.id === 'string' ? String(a.id) === String(user._id) : String(a.id?._id) === String(user._id)));
-        const isFull = event && event.maxAttendees > 0 && term.attendees.length >= event.maxAttendees;
+        const isFull = event && event.maxAttendees > 0 && attendanceCount >= event.maxAttendees;
         const canJoin = (!isArchived || canManage) && user && !isAttendingTerm && !isFull;
         const canLeave = (!isArchived || canManage) && user && isAttendingTerm;
 
@@ -718,11 +724,11 @@ const EventDetailPage: React.FC = () => {
                     <strong>{t('time')}:</strong> {term.startTime} - {term.endTime}
                 </p>
                 <p style={{ margin: '5px 0' }}>
-                    <strong>{t('attendees') || 'Attendees'}:</strong> {term.attendees.length}
+                    <strong>{t('attendees') || 'Attendees'}:</strong> {attendanceCount}
                 </p>
-                {isArchived && term.attendees.length > 0 && (
+                {isArchived && attendanceCount > 0 && (
                     <div style={{ marginTop: '10px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                        {term.attendees.map((a, idx) => {
+                        {uniqueAttendees.map((a, idx) => {
                             let name = 'Unknown';
                             if (a.kind === 'USER' && typeof a.id === 'object' && a.id !== null) {
                                 name = (a.id as User).preferNickname && (a.id as User).nickname ? (a.id as User).nickname! : `${(a.id as User).firstName} ${(a.id as User).lastName}`;

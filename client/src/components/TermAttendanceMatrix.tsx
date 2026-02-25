@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
+import { getUniqueAttendanceCount } from '../utils/attendance';
 
 interface Participant {
     id: string;
@@ -267,29 +268,8 @@ const TermAttendanceMatrix: React.FC<TermAttendanceMatrixProps> = ({
     const isAdmin = event.administrators && user && event.administrators.some(admin => (typeof admin === 'string' ? admin === user._id : (admin as any)._id === user._id));
     const canManageEvent = isOwner || isAdmin;
 
-    // Check if participant is attending a specific term
-    const isParticipantAttending = (termId: string, participantId: string, kind: 'USER' | 'GUEST'): boolean => {
-        const term = filteredTerms.find(t => t._id === termId);
-        if (!term) return false;
-        return term.attendees.some(a => {
-            const id = typeof a.id === 'object' && a.id !== null ? a.id._id : a.id;
-            return String(id) === String(participantId) && a.kind === kind;
-        });
-    };
-
-    // Check if term meets minimum attendees
-    const getUniqueAttendanceCount = (term: Term): number => {
-        const ids = new Set<string>();
-        term.attendees.forEach(a => {
-            if (a.id === null || a.id === undefined) return;
-            const id = typeof a.id === 'object' ? a.id._id : a.id;
-            if (id) ids.add(String(id));
-        });
-        return ids.size;
-    };
-
     const meetsMinimum = (term: Term): boolean => {
-        return event.minAttendees > 0 && getUniqueAttendanceCount(term) >= event.minAttendees;
+        return event.minAttendees > 0 && getUniqueAttendanceCount(term.attendees) >= event.minAttendees;
     };
 
     return (
@@ -376,7 +356,7 @@ const TermAttendanceMatrix: React.FC<TermAttendanceMatrixProps> = ({
                                                 {new Date(term.date).toLocaleDateString()}
                                             </div>
                                             <div className="term-count" style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
-                                                {getUniqueAttendanceCount(term)} / {event.maxAttendees || '∞'}
+                                                {getUniqueAttendanceCount(term.attendees)} / {event.maxAttendees || '∞'}
                                             </div>
                                         </div>
                                     </th>
@@ -432,8 +412,11 @@ const TermAttendanceMatrix: React.FC<TermAttendanceMatrixProps> = ({
                                             </div>
                                         </td>
                                         {visibleTerms.map(term => {
-                                            const attending = isParticipantAttending(term._id, p.id, p.kind);
-                                            const uniqueCount = getUniqueAttendanceCount(term);
+                                            const attending = term.attendees.some(a => {
+                                                const aId = typeof a.id === 'object' && a.id !== null ? a.id._id : a.id;
+                                                return String(aId) === String(p.id) && a.kind === p.kind;
+                                            });
+                                            const uniqueCount = getUniqueAttendanceCount(term.attendees);
                                             const isFull = event.maxAttendees > 0 && uniqueCount >= event.maxAttendees;
                                             const canToggle = !readOnly && canToggleRow && (attending || !isFull);
 
