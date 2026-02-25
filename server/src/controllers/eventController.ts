@@ -510,23 +510,28 @@ export const toggleTermAttendance = async (req: Request, res: Response) => {
             }
         }
 
-        // Check if user/guest is already attending
-        const attendeeIndex = term.attendees.findIndex(
-            (a: any) => a.id && a.id.toString() === targetUserId.toString() && a.kind === kind
+        // Atomic toggle
+        // 1. Try to remove first
+        const removeResult = await Term.updateOne(
+            { _id: term._id },
+            { $pull: { attendees: { id: targetUserId, kind: kind } } }
         );
 
-        const isAttendingNow = attendeeIndex === -1;
-        if (isAttendingNow) {
+        if (removeResult.modifiedCount > 0) {
+            // Success: removed
+        } else {
+            // Not found, try to add
             const event = await mongoose.model('Event').findById(term.eventId);
             if (event && event.maxAttendees && term.attendees.length >= event.maxAttendees) {
                 return res.status(400).json({ message: 'Term is full' });
             }
-            term.attendees.push({ id: targetUserId, kind });
-        } else {
-            term.attendees.splice(attendeeIndex, 1);
-        }
 
-        await term.save();
+            // Atomic add only if NOT exists
+            await Term.updateOne(
+                { _id: term._id, 'attendees.id': { $ne: targetUserId } },
+                { $push: { attendees: { id: targetUserId, kind: kind } } }
+            );
+        }
 
         const originalAttendees = JSON.parse(JSON.stringify(term.attendees));
 
@@ -583,18 +588,22 @@ export const toggleEventAttendance = async (req: Request, res: Response) => {
             }
         }
 
-        const attendeeIndex = event.attendees.findIndex(
-            (a: any) => a.id && a.id.toString() === targetUserId.toString() && a.kind === kind
+        // Atomic toggle
+        const removeResult = await Event.updateOne(
+            { _id: event._id },
+            { $pull: { attendees: { id: targetUserId, kind: kind } } }
         );
 
-        if (attendeeIndex === -1) {
-            event.attendees.push({ id: targetUserId, kind });
-        } else {
-            event.attendees.splice(attendeeIndex, 1);
+        if (removeResult.modifiedCount === 0) {
+            // Not found, try to add
+            await Event.updateOne(
+                { _id: event._id, 'attendees.id': { $ne: targetUserId } },
+                { $push: { attendees: { id: targetUserId, kind: kind } } }
+            );
         }
 
-        await event.save();
-        res.json({ attendees: event.attendees });
+        const updatedEvent = await Event.findById(event._id);
+        res.json({ attendees: updatedEvent?.attendees || [] });
     } catch (error: any) {
         logger.error('Error toggling event attendance', { error: error.message, eventUuid: req.params.uuid, userId: (req as any).user._id });
         res.status(500).json({ message: error.message });

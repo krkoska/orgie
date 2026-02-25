@@ -143,20 +143,48 @@ const TermAttendanceMatrix: React.FC<TermAttendanceMatrixProps> = ({
 
     // 1. Process overall event attendees
     event.attendees.forEach(a => {
-        if (a.kind === 'USER' && a.id !== null) {
+        if (a.id === null || a.id === undefined) return;
+        const id = typeof a.id === 'string' ? a.id : a.id._id;
+        if (!id || seenMap.has(id)) return;
+
+        if (a.kind === 'USER') {
             const u = a.id;
-            const userId = typeof u === 'string' ? u : u._id;
-            if (!seenMap.has(userId)) {
+            participants.push({
+                id: id,
+                kind: 'USER',
+                firstName: typeof u === 'object' ? u.firstName : t('unknownUser') || 'Unknown User',
+                lastName: typeof u === 'object' ? u.lastName : '',
+                nickname: typeof u === 'object' ? u.nickname : undefined,
+                preferNickname: typeof u === 'object' ? u.preferNickname : false
+            });
+            seenMap.set(id, true);
+        } else if (a.kind === 'GUEST') {
+            const guest = event.guests.find(g => g._id === id);
+            if (guest) {
+                const patron = guest.addedBy;
+                const patronName = typeof patron === 'object' && patron !== null
+                    ? (patron.preferNickname && patron.nickname ? patron.nickname : `${patron.firstName} ${patron.lastName}`)
+                    : '';
+                const patronId = typeof patron === 'object' && patron !== null ? patron._id : patron;
+
                 participants.push({
-                    id: userId,
-                    kind: 'USER',
-                    firstName: typeof u === 'object' ? u.firstName : t('unknown'),
-                    lastName: typeof u === 'object' ? u.lastName : '',
-                    nickname: typeof u === 'object' ? u.nickname : undefined,
-                    preferNickname: typeof u === 'object' ? u.preferNickname : false
+                    id: guest._id,
+                    kind: 'GUEST',
+                    firstName: guest.firstName,
+                    lastName: guest.lastName,
+                    addedBy: patronName,
+                    addedById: patronId
                 });
-                seenMap.set(userId, true);
+            } else {
+                participants.push({
+                    id: id,
+                    kind: 'GUEST',
+                    firstName: t('deletedGuest') || 'Deleted Guest',
+                    lastName: '',
+                    addedBy: t('unknown') || 'Unknown'
+                });
             }
+            seenMap.set(id, true);
         }
     });
 
@@ -250,8 +278,18 @@ const TermAttendanceMatrix: React.FC<TermAttendanceMatrixProps> = ({
     };
 
     // Check if term meets minimum attendees
+    const getUniqueAttendanceCount = (term: Term): number => {
+        const ids = new Set<string>();
+        term.attendees.forEach(a => {
+            if (a.id === null || a.id === undefined) return;
+            const id = typeof a.id === 'object' ? a.id._id : a.id;
+            if (id) ids.add(String(id));
+        });
+        return ids.size;
+    };
+
     const meetsMinimum = (term: Term): boolean => {
-        return event.minAttendees > 0 && term.attendees.length >= event.minAttendees;
+        return event.minAttendees > 0 && getUniqueAttendanceCount(term) >= event.minAttendees;
     };
 
     return (
@@ -338,7 +376,7 @@ const TermAttendanceMatrix: React.FC<TermAttendanceMatrixProps> = ({
                                                 {new Date(term.date).toLocaleDateString()}
                                             </div>
                                             <div className="term-count" style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
-                                                {term.attendees.length} / {event.maxAttendees || '∞'}
+                                                {getUniqueAttendanceCount(term)} / {event.maxAttendees || '∞'}
                                             </div>
                                         </div>
                                     </th>
