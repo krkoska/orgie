@@ -163,6 +163,8 @@ const translations: Translations = {
     'guest': { en: 'Guest', cs: 'Host' },
     'addedBy': { en: 'Added by', cs: 'Přidal' },
     'guestAdded': { en: 'Guest added successfully', cs: 'Host byl úspěšně přidán' },
+    'unknownUser': { en: 'Unknown User', cs: 'Neznámý uživatel' },
+    'deletedGuest': { en: 'Deleted Guest', cs: 'Smazaný host' },
     'termOutcomePreview': { en: 'Term Outcome Preview', cs: 'Předběžný výsledek termínu' },
     'noStatsEntered': { en: 'Enter stats to see the outcome', cs: 'Zadejte výsledky pro zobrazení výsledku' },
     'outcomeWin': { en: 'WIN', cs: 'VÝHRA' },

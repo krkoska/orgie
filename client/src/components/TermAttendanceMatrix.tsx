@@ -163,45 +163,50 @@ const TermAttendanceMatrix: React.FC<TermAttendanceMatrixProps> = ({
     // 2. Process all term attendees for the current view (active or archived)
     filteredTerms.forEach(term => {
         term.attendees.forEach(a => {
-            if (a.kind === 'USER' && a.id !== null) {
+            if (a.id === null || a.id === undefined) return;
+
+            const id = typeof a.id === 'string' ? a.id : a.id._id;
+            if (!id || seenMap.has(id)) return;
+
+            if (a.kind === 'USER') {
                 const u = a.id;
-                const userId = typeof u === 'string' ? u : u._id;
-                if (!seenMap.has(userId)) {
-                    participants.push({
-                        id: userId,
-                        kind: 'USER',
-                        firstName: typeof u === 'object' ? u.firstName : t('unknown'),
-                        lastName: typeof u === 'object' ? u.lastName : '',
-                        nickname: typeof u === 'object' ? u.nickname : undefined,
-                        preferNickname: typeof u === 'object' ? u.preferNickname : false
-                    });
-                    seenMap.set(userId, true);
-                }
+                participants.push({
+                    id: id,
+                    kind: 'USER',
+                    firstName: typeof u === 'object' ? u.firstName : t('unknownUser') || 'Unknown User',
+                    lastName: typeof u === 'object' ? u.lastName : '',
+                    nickname: typeof u === 'object' ? u.nickname : undefined,
+                    preferNickname: typeof u === 'object' ? u.preferNickname : false
+                });
+                seenMap.set(id, true);
             } else if (a.kind === 'GUEST') {
-                const guestId = (typeof a.id === 'string')
-                    ? a.id
-                    : (a.id && typeof a.id === 'object' ? (a.id as any)._id : null);
+                const guest = event.guests.find(g => g._id === id);
+                if (guest) {
+                    const patron = guest.addedBy;
+                    const patronName = typeof patron === 'object' && patron !== null
+                        ? (patron.preferNickname && patron.nickname ? patron.nickname : `${patron.firstName} ${patron.lastName}`)
+                        : '';
+                    const patronId = typeof patron === 'object' && patron !== null ? patron._id : patron;
 
-                if (guestId && !seenMap.has(guestId)) {
-                    const guest = event.guests.find(g => g._id === guestId);
-                    if (guest) {
-                        const patron = guest.addedBy;
-                        const patronName = typeof patron === 'object' && patron !== null
-                            ? (patron.preferNickname && patron.nickname ? patron.nickname : `${patron.firstName} ${patron.lastName}`)
-                            : '';
-                        const patronId = typeof patron === 'object' && patron !== null ? patron._id : patron;
-
-                        participants.push({
-                            id: guest._id,
-                            kind: 'GUEST',
-                            firstName: guest.firstName,
-                            lastName: guest.lastName,
-                            addedBy: patronName,
-                            addedById: patronId
-                        });
-                        seenMap.set(guest._id, true);
-                    }
+                    participants.push({
+                        id: guest._id,
+                        kind: 'GUEST',
+                        firstName: guest.firstName,
+                        lastName: guest.lastName,
+                        addedBy: patronName,
+                        addedById: patronId
+                    });
+                } else {
+                    // Fallback for "ghost" guest
+                    participants.push({
+                        id: id,
+                        kind: 'GUEST',
+                        firstName: t('deletedGuest') || 'Deleted Guest',
+                        lastName: '',
+                        addedBy: t('unknown') || 'Unknown'
+                    });
                 }
+                seenMap.set(id, true);
             }
         });
     });

@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import { v4 as uuidv4 } from 'uuid';
-import Event, { EventType, ISeason } from '../models/Event';
+import Event, { EventType, ISeason, RecurrenceFrequency } from '../models/Event';
 import Term from '../models/Term';
 import logger from '../utils/logger';
 
@@ -289,8 +289,8 @@ export const getEventByUuid = async (req: Request, res: Response) => {
 
         if (populatedEvent) {
             (populatedEvent.attendees as any) = (populatedEvent.attendees as any).map((a: any, idx: number) => {
-                if (a.kind === 'GUEST' && (a.id === null || a.id === undefined)) {
-                    // Restore original guest ID if population wiped it
+                if (a.id === null || a.id === undefined) {
+                    // Restore original ID if population wiped it (e.g. deleted user or guest)
                     const origId = originalEventAttendees[idx]?.id;
                     return { ...a, id: origId ? origId.toString() : null };
                 }
@@ -309,15 +309,35 @@ export const getEventByUuid = async (req: Request, res: Response) => {
             date: { $gte: today }
         }).sort({ date: 1 });
 
-        const activeTerms = terms.filter(t => {
-            // Combine t.date (YYYY-MM-DD) and t.endTime (HH:mm) for robust comparison
-            const datePart = new Date(t.date).toISOString().split('T')[0];
-            const termEndTime = new Date(`${datePart}T${t.endTime}:00`);
+        // Helper to get "wall clock" pieces in Prague time (assuming CET/CEST)
+        const getWallClock = (date: Date) => {
+            const parts = new Intl.DateTimeFormat('en-GB', {
+                timeZone: 'Europe/Prague',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            }).formatToParts(date);
 
-            // Note: If the server and client are in different timezones, we might need more effort.
-            // But for a local dev or a server configured with a TZ, this should be consistent.
-            // Let's use a simpler approach that just compares the derived timestamp.
-            return now < termEndTime;
+            const find = (type: string) => parts.find(p => p.type === type)?.value;
+            return {
+                dateStr: `${find('year')}-${find('month')}-${find('day')}`,
+                timeStr: `${find('hour')}:${find('minute')}`
+            };
+        };
+
+        const currentWallClock = getWallClock(now);
+
+        const activeTerms = terms.filter(t => {
+            const termDateStr = new Date(t.date).toISOString().split('T')[0];
+
+            if (termDateStr > currentWallClock.dateStr) return true; // Future day
+            if (termDateStr < currentWallClock.dateStr) return false; // Past day
+
+            // Same day, compare time strings
+            return currentWallClock.timeStr < t.endTime;
         });
 
         const originalTermsAttendees = activeTerms.map(t => JSON.parse(JSON.stringify(t.attendees)));
@@ -330,7 +350,7 @@ export const getEventByUuid = async (req: Request, res: Response) => {
             }).then(pt => {
                 if (pt) {
                     (pt.attendees as any) = (pt.attendees as any).map((a: any, aIdx: number) => {
-                        if (a.kind === 'GUEST' && (a.id === null || a.id === undefined)) {
+                        if (a.id === null || a.id === undefined) {
                             const origId = originalTermsAttendees[tIdx][aIdx]?.id;
                             return { ...a, id: origId ? origId.toString() : null };
                         }
@@ -362,16 +382,26 @@ export const generateTerms = async (req: Request, res: Response) => {
             return res.status(401).json({ message: 'User not authorized' });
         }
 
-        if (event.type !== EventType.RECURRING || !event.recurrence || !event.recurrence.weekDays) {
-            return res.status(400).json({ message: 'Event is not recurring or missing weekDays' });
+        if (event.type !== EventType.RECURRING || !event.recurrence) {
+            return res.status(400).json({ message: 'Event is not recurring' });
         }
 
         const start = new Date(startDate);
         const end = new Date(endDate);
         const termsToInsert = [];
 
+        const { frequency, weekDays = [] } = event.recurrence;
+
         for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-            if (event.recurrence.weekDays.includes(d.getDay())) {
+            let shouldInclude = false;
+
+            if (frequency === RecurrenceFrequency.DAILY) {
+                shouldInclude = true;
+            } else if (frequency === RecurrenceFrequency.WEEKLY) {
+                shouldInclude = weekDays.includes(d.getDay());
+            }
+
+            if (shouldInclude) {
                 termsToInsert.push({
                     eventId: event._id,
                     date: new Date(d),
@@ -592,11 +622,28 @@ export const getArchivedTerms = async (req: Request, res: Response) => {
             date: { $lt: nextDay }
         }).sort({ date: -1 });
 
-        const archivedTerms = allTermsBeforeOrToday.filter(t => {
-            const datePart = new Date(t.date).toISOString().split('T')[0];
-            const termEndTime = new Date(`${datePart}T${t.endTime}:00`);
+        const currentWallClock = new Intl.DateTimeFormat('en-GB', {
+            timeZone: 'Europe/Prague',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        }).formatToParts(now);
 
-            return now >= termEndTime;
+        const find = (type: string) => currentWallClock.find(p => p.type === type)?.value;
+        const nowDateStr = `${find('year')}-${find('month')}-${find('day')}`;
+        const nowTimeStr = `${find('hour')}:${find('minute')}`;
+
+        const archivedTerms = allTermsBeforeOrToday.filter(t => {
+            const termDateStr = new Date(t.date).toISOString().split('T')[0];
+
+            if (termDateStr < nowDateStr) return true; // Definitely past
+            if (termDateStr > nowDateStr) return false; // Definitely future
+
+            // Same day, check if end time has passed
+            return nowTimeStr >= t.endTime;
         });
 
         const originalAttendeesPerTerm = archivedTerms.map((t: any) => JSON.parse(JSON.stringify(t.attendees)));
@@ -613,7 +660,7 @@ export const getArchivedTerms = async (req: Request, res: Response) => {
             if (!t) return null;
             const termObj = t.toObject();
             termObj.attendees = termObj.attendees.map((a: any, aIdx: number) => {
-                if (a.kind === 'GUEST' && (a.id === null || a.id === undefined)) {
+                if (a.id === null || a.id === undefined) {
                     const origId = originalAttendeesPerTerm[tIdx][aIdx]?.id;
                     return { ...a, id: origId ? origId.toString() : null };
                 }
