@@ -433,7 +433,8 @@ const TermAttendanceMatrix: React.FC<TermAttendanceMatrixProps> = ({
                                         </td>
                                         {visibleTerms.map(term => {
                                             const attending = isParticipantAttending(term._id, p.id, p.kind);
-                                            const isFull = event.maxAttendees > 0 && term.attendees.length >= event.maxAttendees;
+                                            const uniqueCount = getUniqueAttendanceCount(term);
+                                            const isFull = event.maxAttendees > 0 && uniqueCount >= event.maxAttendees;
                                             const canToggle = !readOnly && canToggleRow && (attending || !isFull);
 
                                             return (

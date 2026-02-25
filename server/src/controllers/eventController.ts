@@ -522,8 +522,15 @@ export const toggleTermAttendance = async (req: Request, res: Response) => {
         } else {
             // Not found, try to add
             const event = await mongoose.model('Event').findById(term.eventId);
-            if (event && event.maxAttendees && term.attendees.length >= event.maxAttendees) {
-                return res.status(400).json({ message: 'Term is full' });
+            if (event && event.maxAttendees) {
+                // Calculate unique count including current state
+                const uniqueIds = new Set(term.attendees.map((a: any) =>
+                    (a.id && a.id.toString()) || null
+                ).filter(id => id !== null));
+
+                if (uniqueIds.size >= event.maxAttendees) {
+                    return res.status(400).json({ message: 'Term is full' });
+                }
             }
 
             // Atomic add only if NOT exists
