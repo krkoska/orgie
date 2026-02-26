@@ -10,9 +10,13 @@ export interface SimpleAttendee {
 export const getUniqueAttendees = <T extends SimpleAttendee>(attendees: T[]): T[] => {
     const seen = new Set<string>();
     return attendees.filter(a => {
-        const id = typeof a.id === 'string' ? a.id : a.id?._id;
-        if (!id || seen.has(id.toString())) return false;
-        seen.add(id.toString());
+        if (!a.id) return false;
+        // If populated, use a.id._id. If not populated (ObjectId), use a.id directly.
+        const id = typeof a.id === 'object' && a.id._id ? a.id._id : a.id;
+        const idStr = id.toString();
+
+        if (seen.has(idStr)) return false;
+        seen.add(idStr);
         return true;
     });
 };
@@ -23,8 +27,9 @@ export const getUniqueAttendees = <T extends SimpleAttendee>(attendees: T[]): T[
 export const getUniqueAttendanceCount = (attendees: SimpleAttendee[]): number => {
     const ids = new Set<string>();
     attendees.forEach(a => {
-        const id = typeof a.id === 'string' ? a.id : a.id?._id;
-        if (id) ids.add(id.toString());
+        if (!a.id) return;
+        const id = typeof a.id === 'object' && a.id._id ? a.id._id : a.id;
+        ids.add(id.toString());
     });
     return ids.size;
 };
