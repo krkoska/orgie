@@ -8,6 +8,7 @@ import rateLimit from 'express-rate-limit';
 import authRoutes from './routes/authRoutes';
 import eventRoutes from './routes/eventRoutes';
 import userRoutes from './routes/userRoutes';
+import pollRoutes from './routes/pollRoutes';
 import logger from './utils/logger';
 
 const app = express();
@@ -48,6 +49,7 @@ app.use('/api/auth', authLimiter);
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/events', eventRoutes);
+app.use('/api/polls', pollRoutes);
 app.use('/api/users', userRoutes);
 
 

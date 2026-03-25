@@ -755,7 +755,7 @@ const EventDetailPage: React.FC = () => {
     return (
         <div className="dashboard">
             <div style={{ marginBottom: '2rem' }}>
-                <button onClick={() => navigate('/')} className="btn-secondary" style={{ marginBottom: '1rem' }} title={t('back') || 'Back to Dashboard'}>
+                <button onClick={() => navigate('/?tab=events')} className="btn-secondary" style={{ marginBottom: '1rem' }} title={t('back') || 'Back to Dashboard'}>
                     ← {t('back') || 'Back to Dashboard'}
                 </button>
 
