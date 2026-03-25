@@ -510,17 +510,17 @@ export const toggleTermAttendance = async (req: Request, res: Response) => {
             }
         }
 
-        // Atomic toggle
-        // 1. Try to remove first
-        const removeResult = await Term.updateOne(
-            { _id: term._id },
-            { $pull: { attendees: { id: targetUserId, kind: kind } } }
+        // Atomic toggle using deterministic check
+        const isAttending = term.attendees.some((a: any) => 
+            a.id && a.id.toString() === targetUserId && a.kind === kind
         );
 
-        if (removeResult.modifiedCount > 0) {
-            // Success: removed
+        if (isAttending) {
+            await Term.updateOne(
+                { _id: term._id },
+                { $pull: { attendees: { id: targetUserId, kind: kind } } }
+            );
         } else {
-            // Not found, try to add
             const event = await mongoose.model('Event').findById(term.eventId);
             if (event && event.maxAttendees) {
                 // Calculate unique count including current state
@@ -533,9 +533,8 @@ export const toggleTermAttendance = async (req: Request, res: Response) => {
                 }
             }
 
-            // Atomic add only if NOT exists
             await Term.updateOne(
-                { _id: term._id, 'attendees.id': { $ne: targetUserId } },
+                { _id: term._id },
                 { $push: { attendees: { id: targetUserId, kind: kind } } }
             );
         }
@@ -595,16 +594,19 @@ export const toggleEventAttendance = async (req: Request, res: Response) => {
             }
         }
 
-        // Atomic toggle
-        const removeResult = await Event.updateOne(
-            { _id: event._id },
-            { $pull: { attendees: { id: targetUserId, kind: kind } } }
+        // Better logic: use the loaded document to check presence
+        const isAttending = event.attendees.some((a: any) => 
+            a.id && a.id.toString() === targetUserId && a.kind === kind
         );
 
-        if (removeResult.modifiedCount === 0) {
-            // Not found, try to add
+        if (isAttending) {
             await Event.updateOne(
-                { _id: event._id, 'attendees.id': { $ne: targetUserId } },
+                { _id: event._id },
+                { $pull: { attendees: { id: targetUserId, kind: kind } } }
+            );
+        } else {
+            await Event.updateOne(
+                { _id: event._id },
                 { $push: { attendees: { id: targetUserId, kind: kind } } }
             );
         }
