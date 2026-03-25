@@ -9,6 +9,7 @@ import Profile from './pages/Profile';
 import EventDetailPage from './pages/EventDetailPage';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
+import PollPage from './pages/PollPage';
 
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading } = useAuth();
@@ -32,6 +33,7 @@ const AppRoutes: React.FC = () => {
             </PrivateRoute>
           } />
           <Route path="/event/:uuid" element={<EventDetailPage />} />
+          <Route path="/poll/:uuid" element={<PollPage />} />
           <Route path="/" element={
             <PrivateRoute>
               <Dashboard />

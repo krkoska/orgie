@@ -142,3 +142,6 @@ vite.config.ts.timestamp-*
 
 # Git worktrees
 .worktrees/
+
+# Superpowers brainstorm files
+.superpowers/
