@@ -12,6 +12,7 @@ interface Translations {
 const translations: Translations = {
     // Auth & Nav
     'login': { en: 'Login', cs: 'Přihlásit se' },
+    'sessionExpired': { en: 'Your session has expired.', cs: 'Tvoje session vypršela.' },
     'register': { en: 'Register', cs: 'Registrovat' },
     'logout': { en: 'Logout', cs: 'Odhlásit se' },
     'welcome': { en: 'Welcome', cs: 'Vítejte' },
