@@ -1,8 +1,11 @@
 import axios from 'axios';
 
 let onSessionExpired: (() => void) | null = null;
+let sessionExpiredFired = false;
+
 export const setSessionExpiredHandler = (fn: () => void): void => {
     onSessionExpired = fn;
+    sessionExpiredFired = false; // reset when a new handler is registered (re-auth clears the flag)
 };
 
 const api = axios.create({
@@ -27,9 +30,12 @@ api.interceptors.response.use(
                 // If refresh succeeds, retry the original request
                 return api(originalRequest);
             } catch (refreshError) {
-                // If refresh fails, notify the app that the session has expired
-                onSessionExpired?.();
-                window.dispatchEvent(new Event('session-expired'));
+                // If refresh fails, notify the app that the session has expired (once only)
+                if (!sessionExpiredFired) {
+                    sessionExpiredFired = true;
+                    onSessionExpired?.();
+                    window.dispatchEvent(new Event('session-expired'));
+                }
                 return Promise.reject(refreshError);
             }
         }

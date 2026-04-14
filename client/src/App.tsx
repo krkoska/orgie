@@ -28,6 +28,7 @@ const AppRoutes: React.FC = () => {
     setSessionExpiredHandler(() =>
       showActionToast(t('sessionExpired'), 'error', { label: t('login'), href: '/login' })
     );
+    return () => setSessionExpiredHandler(() => {});
   }, [showActionToast, t]);
 
   return (
