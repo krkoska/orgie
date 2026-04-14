@@ -1,5 +1,10 @@
 import axios from 'axios';
 
+let onSessionExpired: (() => void) | null = null;
+export const setSessionExpiredHandler = (fn: () => void): void => {
+    onSessionExpired = fn;
+};
+
 const api = axios.create({
     baseURL: import.meta.env.VITE_API_BASE_URL || (import.meta.env.PROD ? '/api' : 'http://localhost:5001/api'),
     withCredentials: true
@@ -22,7 +27,9 @@ api.interceptors.response.use(
                 // If refresh succeeds, retry the original request
                 return api(originalRequest);
             } catch (refreshError) {
-                // If refresh fails, let the error propagate
+                // If refresh fails, notify the app that the session has expired
+                onSessionExpired?.();
+                window.dispatchEvent(new Event('session-expired'));
                 return Promise.reject(refreshError);
             }
         }
