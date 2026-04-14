@@ -30,8 +30,10 @@ api.interceptors.response.use(
                 // If refresh succeeds, retry the original request
                 return api(originalRequest);
             } catch (refreshError) {
-                // If refresh fails, notify the app that the session has expired (once only)
-                if (!sessionExpiredFired) {
+                // If refresh fails, notify the app that the session has expired (once only).
+                // Skip notification for /auth/me — that's a background check on page load;
+                // AuthContext handles the failure silently in its own catch block.
+                if (!sessionExpiredFired && !originalRequest.url?.includes('/auth/me')) {
                     sessionExpiredFired = true;
                     onSessionExpired?.();
                     window.dispatchEvent(new Event('session-expired'));
