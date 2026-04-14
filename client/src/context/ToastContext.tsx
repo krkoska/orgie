@@ -7,10 +7,12 @@ interface Toast {
     id: string;
     message: string;
     type: ToastType;
+    action?: { label: string; href: string };
 }
 
 interface ToastContextType {
     showToast: (message: string, type?: ToastType) => void;
+    showActionToast: (message: string, type: ToastType, action: { label: string; href: string }) => void;
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
@@ -37,6 +39,15 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }, 4000);
     }, []);
 
+    const showActionToast = useCallback((message: string, type: ToastType, action: { label: string; href: string }) => {
+        const id = Math.random().toString(36).substr(2, 9);
+        const newToast: Toast = { id, message, type, action };
+        setToasts(prev => [...prev, newToast]);
+        setTimeout(() => {
+            setToasts(prev => prev.filter(t => t.id !== id));
+        }, 8000);
+    }, []);
+
     const removeToast = (id: string) => {
         setToasts(prev => prev.filter(t => t.id !== id));
     };
@@ -58,7 +69,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
 
     return (
-        <ToastContext.Provider value={{ showToast }}>
+        <ToastContext.Provider value={{ showToast, showActionToast }}>
             {children}
             <div style={{
                 position: 'fixed',
@@ -92,6 +103,23 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                         <div style={{ flex: 1, fontSize: '14px', color: '#333' }}>
                             {toast.message}
                         </div>
+                        {toast.action && (
+                            <a
+                                href={toast.action.href}
+                                style={{
+                                    color: getColor(toast.type),
+                                    fontWeight: 600,
+                                    fontSize: '13px',
+                                    textDecoration: 'none',
+                                    whiteSpace: 'nowrap',
+                                    padding: '4px 8px',
+                                    border: `1px solid ${getColor(toast.type)}`,
+                                    borderRadius: '4px',
+                                }}
+                            >
+                                {toast.action.label}
+                            </a>
+                        )}
                         <button
                             onClick={() => removeToast(toast.id)}
                             style={{
