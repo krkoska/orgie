@@ -38,6 +38,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         checkUser();
     }, []);
 
+    useEffect(() => {
+        const handleExpired = () => setUser(null);
+        window.addEventListener('session-expired', handleExpired);
+        return () => window.removeEventListener('session-expired', handleExpired);
+    }, []);
+
     const login = (userData: User) => {
         setUser(userData);
     };
