@@ -1,6 +1,9 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ToastProvider, useToast } from './context/ToastContext';
+import { LanguageProvider, useLanguage } from './context/LanguageContext';
+import { setSessionExpiredHandler } from './services/api';
 import Navbar from './components/Navbar';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -18,6 +21,15 @@ const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => 
 };
 
 const AppRoutes: React.FC = () => {
+  const { showActionToast } = useToast();
+  const { t } = useLanguage();
+
+  useEffect(() => {
+    setSessionExpiredHandler(() =>
+      showActionToast(t('sessionExpired'), 'error', { label: t('login'), href: '/login' })
+    );
+  }, [showActionToast, t]);
+
   return (
     <>
       <Navbar />
@@ -44,9 +56,6 @@ const AppRoutes: React.FC = () => {
     </>
   );
 }
-
-import { LanguageProvider } from './context/LanguageContext';
-import { ToastProvider } from './context/ToastContext';
 
 const App: React.FC = () => {
   return (
