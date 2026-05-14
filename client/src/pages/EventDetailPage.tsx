@@ -78,6 +78,20 @@ interface Term {
     };
 }
 
+interface PlayerStat {
+    id: string;
+    kind: 'USER' | 'GUEST';
+    name: string;
+    attendance: number;
+    attendancePct: number;
+    wins: number;
+    draws: number;
+    losses: number;
+    totalGames: number;
+    winPct: number;
+    lossPct: number;
+}
+
 const EventDetailPage: React.FC = () => {
     const { uuid } = useParams<{ uuid: string }>();
     const navigate = useNavigate();
@@ -131,6 +145,11 @@ const EventDetailPage: React.FC = () => {
     const seasonSwitcherRef = React.useRef<HTMLDivElement>(null);
     const [showAllSeasonsStats, setShowAllSeasonsStats] = useState(false);
 
+    const [globalStats, setGlobalStats] = useState<PlayerStat[]>([]);
+    const [statsLoading, setStatsLoading] = useState(false);
+    const [statsTotalTerms, setStatsTotalTerms] = useState(0);
+    const [statsFilledCount, setStatsFilledCount] = useState(0);
+
     // Unified unique attendee logic is now in ../utils/attendance.ts
 
     const fetchEventDetails = async () => {
@@ -149,6 +168,9 @@ const EventDetailPage: React.FC = () => {
         await fetchEventDetails();
         if (showArchive || showStats) {
             await fetchArchivedTerms();
+        }
+        if (showStats) {
+            await fetchStats();
         }
     };
 
@@ -347,6 +369,33 @@ const EventDetailPage: React.FC = () => {
         }
     };
 
+    const fetchStats = async () => {
+        if (!uuid) return;
+        setStatsLoading(true);
+        try {
+            const params = new URLSearchParams();
+            if (showAllSeasonsStats) {
+                params.set('allSeasons', 'true');
+            } else if (selectedSeasonIdx !== null) {
+                params.set('seasonIdx', String(selectedSeasonIdx));
+            }
+            const { data } = await api.get(`/events/uuid/${uuid}/stats?${params.toString()}`);
+            setGlobalStats(data.stats);
+            setStatsTotalTerms(data.totalTerms);
+            setStatsFilledCount(data.filledTermsCount);
+        } catch (err: any) {
+            showToast(err.response?.data?.message || 'Failed to load statistics', 'error');
+        } finally {
+            setStatsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (showStats) {
+            fetchStats();
+        }
+    }, [showAllSeasonsStats, selectedSeasonIdx, showStats]);
+
     const filteredTerms = React.useMemo(() => {
         if (!event?.seasons || event.seasons.length === 0 || selectedSeasonIdx === null) {
             return terms;
@@ -426,9 +475,7 @@ const EventDetailPage: React.FC = () => {
             setShowStats(false);
             return;
         }
-        if (archivedTerms.length === 0) {
-            await fetchArchivedTerms();
-        }
+        await fetchStats();
         setShowStats(true);
     };
 
@@ -438,166 +485,6 @@ const EventDetailPage: React.FC = () => {
             direction: prev.key === key && prev.direction === 'desc' ? 'asc' : 'desc'
         }));
     };
-
-    const globalStats = React.useMemo(() => {
-        if (!archivedTerms.length) return [];
-
-        const termsToProcess = showAllSeasonsStats ? allSeasonsArchivedTerms : filteredArchivedTerms;
-        const statsMap = new Map<string, {
-            id: string;
-            kind: 'USER' | 'GUEST';
-            name: string;
-            attendance: number;
-            wins: number;
-            draws: number;
-            losses: number;
-            totalGames: number;
-        }>();
-
-        // 1. Initialize statsMap with all current event participants
-        if (event) {
-            event.attendees.forEach(a => {
-                const id = typeof a.id === 'string' ? a.id : (a.id as any)._id;
-                const key = `${a.kind}-${id}`;
-                if (!statsMap.has(key)) {
-                    let name = 'Unknown';
-                    if (a.kind === 'USER' && typeof a.id === 'object' && a.id !== null) {
-                        const u = a.id as any;
-                        name = u.preferNickname && u.nickname ? u.nickname : `${u.firstName} ${u.lastName}`;
-                    } else if (a.kind === 'GUEST') {
-                        const guest = event.guests.find(g => g._id === id);
-                        if (guest) name = `${guest.firstName} ${guest.lastName}`;
-                    }
-                    statsMap.set(key, {
-                        id,
-                        kind: a.kind,
-                        name,
-                        attendance: 0,
-                        wins: 0,
-                        draws: 0,
-                        losses: 0,
-                        totalGames: 0
-                    });
-                }
-            });
-
-            event.guests.forEach(g => {
-                const key = `GUEST-${g._id}`;
-                if (!statsMap.has(key)) {
-                    statsMap.set(key, {
-                        id: g._id,
-                        kind: 'GUEST',
-                        name: `${g.firstName} ${g.lastName}`,
-                        attendance: 0,
-                        wins: 0,
-                        draws: 0,
-                        losses: 0,
-                        totalGames: 0
-                    });
-                }
-            });
-        }
-
-        const totalTerms = termsToProcess.length;
-
-        termsToProcess.forEach(term => {
-            const uniqueTermAttendees = getUniqueAttendees(term.attendees);
-            // Create a set of attendee keys for this specific term to filter match stats
-            const termAttendeeKeys = new Set(uniqueTermAttendees.map(att => {
-                const id = typeof att.id === 'string' ? att.id : (att.id as any)._id;
-                return `${att.kind}-${id}`;
-            }));
-
-            // Count attendance
-            uniqueTermAttendees.forEach(att => {
-                const id = typeof att.id === 'string' ? att.id : (att.id as any)._id;
-                const key = `${att.kind}-${id}`;
-                if (!statsMap.has(key)) {
-                    let name = 'Unknown';
-                    if (att.kind === 'USER' && typeof att.id === 'object' && att.id !== null) {
-                        name = (att.id as User).preferNickname && (att.id as User).nickname ? (att.id as User).nickname! : `${(att.id as User).firstName} ${(att.id as User).lastName}`;
-                    } else if (att.kind === 'GUEST' && att.id) {
-                        const guestId = typeof att.id === 'string' ? att.id : (att.id as any)._id;
-                        const guest = event?.guests.find(g => g._id === guestId);
-                        if (guest) name = `${guest.firstName} ${guest.lastName}`;
-                    }
-                    statsMap.set(key, {
-                        id,
-                        kind: att.kind,
-                        name,
-                        attendance: 0,
-                        wins: 0,
-                        draws: 0,
-                        losses: 0,
-                        totalGames: 0
-                    });
-                }
-                statsMap.get(key)!.attendance += 1;
-            });
-
-            // Count match results ONLY for those who actually attended this term
-            // New logic: Determine one winner (or a draw) per term
-            if (term.statistics?.teams && term.statistics.teams.length > 0) {
-                // 1. Identify teams that actually played games in this term
-                const teamsWithStats = term.statistics.teams.map(t => ({
-                    ...t,
-                    w: t.wins || 0,
-                    d: t.draws || 0,
-                    l: t.losses || 0,
-                    played: (t.wins || 0) + (t.draws || 0) + (t.losses || 0)
-                })).filter(t => t.played > 0);
-
-                if (teamsWithStats.length > 0) {
-                    // 2. Sort teams using the hierarchy: Wins (desc) -> Draws (desc) -> Losses (asc)
-                    const sortedTeams = [...teamsWithStats].sort((a, b) => {
-                        if (b.w !== a.w) return b.w - a.w;
-                        if (b.d !== a.d) return b.d - a.d;
-                        return a.l - b.l;
-                    });
-
-                    const bestCandidate = sortedTeams[0];
-                    const topTeams = sortedTeams.filter(t =>
-                        t.w === bestCandidate.w && t.d === bestCandidate.d && t.l === bestCandidate.l
-                    );
-
-                    const singleWinnerExists = topTeams.length === 1;
-
-                    // 3. Assign outcomes (Win, Draw, or Loss) to players
-                    teamsWithStats.forEach(team => {
-                        // A player gets a result if they are in the best team(s)
-                        const isTop = topTeams.some(tt => tt.name === team.name); // Using name or some identifier
-                        const outcome = isTop ? (singleWinnerExists ? 'WIN' : 'DRAW') : 'LOSS';
-
-                        team.members.forEach(member => {
-                            const key = `${member.kind}-${member.id}`;
-                            const stats = statsMap.get(key);
-                            if (stats && termAttendeeKeys.has(key)) {
-                                if (outcome === 'WIN') stats.wins += 1;
-                                else if (outcome === 'DRAW') stats.draws += 1;
-                                else stats.losses += 1;
-                                stats.totalGames += 1;
-                            }
-                        });
-                    });
-                }
-            }
-        });
-
-        return Array.from(statsMap.values()).map(s => ({
-            ...s,
-            attendancePct: (s.attendance / totalTerms) * 100,
-            winPct: s.totalGames > 0 ? (s.wins / s.totalGames) * 100 : 0,
-            lossPct: s.totalGames > 0 ? (s.losses / s.totalGames) * 100 : 0
-        })).sort((a: any, b: any) => {
-            if (a[sortConfig.key] < b[sortConfig.key]) {
-                return sortConfig.direction === 'asc' ? -1 : 1;
-            }
-            if (a[sortConfig.key] > b[sortConfig.key]) {
-                return sortConfig.direction === 'asc' ? 1 : -1;
-            }
-            return 0;
-        });
-    }, [filteredArchivedTerms, archivedTerms, showAllSeasonsStats, event, sortConfig]);
 
     const statsHighlights = React.useMemo(() => {
         if (!globalStats.length) return { maxAttendance: -1, maxAttendancePct: -1, maxWinPct: -1, maxLossPct: -1, maxWins: -1, maxLosses: -1 };
@@ -615,10 +502,13 @@ const EventDetailPage: React.FC = () => {
         };
     }, [globalStats]);
 
-    const filledStatsCount = React.useMemo(() => {
-        const termsToCount = showAllSeasonsStats ? allSeasonsArchivedTerms : filteredArchivedTerms;
-        return termsToCount.filter(t => t.statistics?.teams && t.statistics.teams.length > 0).length;
-    }, [filteredArchivedTerms, archivedTerms, showAllSeasonsStats]);
+    const sortedStats = React.useMemo(() => {
+        return [...globalStats].sort((a: any, b: any) => {
+            if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }, [globalStats, sortConfig]);
 
     const handleBulkDeleteArchived = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -960,16 +850,17 @@ const EventDetailPage: React.FC = () => {
             </div>
 
             {/* Global Statistics Section */}
+            {user && (
             <div className="dashboard" style={{ marginTop: '1rem', borderTop: '1px solid #e5e7eb', paddingTop: '2rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
                     <h2 style={{ fontSize: '1.5rem', fontWeight: 600, color: '#1f2937', margin: 0 }}>
                         {t('statistics')}{' '}
                         {showStats && (
                             <span
-                                title={t('statsTooltip').replace('{filled}', filledStatsCount.toString()).replace('{total}', (showAllSeasonsStats ? allSeasonsArchivedTerms : filteredArchivedTerms).length.toString())}
+                                title={t('statsTooltip').replace('{filled}', statsFilledCount.toString()).replace('{total}', statsTotalTerms.toString())}
                                 style={{ cursor: 'help' }}
                             >
-                                ({filledStatsCount}/{(showAllSeasonsStats ? allSeasonsArchivedTerms : filteredArchivedTerms).length})
+                                ({statsFilledCount}/{statsTotalTerms})
                             </span>
                         )}
                     </h2>
@@ -988,10 +879,10 @@ const EventDetailPage: React.FC = () => {
                         <button
                             onClick={handleFetchStats}
                             className="btn-secondary"
-                            disabled={loadingArchive}
+                            disabled={statsLoading}
                             style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
                         >
-                            {loadingArchive ? t('loadingArchive') : (showStats ? t('hideStats') : t('showStats'))}
+                            {statsLoading ? t('loadingArchive') : (showStats ? t('hideStats') : t('showStats'))}
                         </button>
                     </div>
                 </div>
@@ -1034,12 +925,12 @@ const EventDetailPage: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {globalStats.length === 0 ? (
+                                {sortedStats.length === 0 ? (
                                     <tr>
                                         <td colSpan={8} style={{ padding: '24px', textAlign: 'center', color: '#6b7280' }}>{t('noArchivedTerms')}</td>
                                     </tr>
                                 ) : (
-                                    globalStats.map(s => (
+                                    sortedStats.map(s => (
                                         <tr key={`${s.kind}-${s.id}`} style={{ borderBottom: '1px solid #f3f4f6' }}>
                                             <td style={{ padding: '12px 16px', fontWeight: 500 }}>
                                                 {s.name} {s.kind === 'GUEST' && <small>(G)</small>}
@@ -1050,7 +941,7 @@ const EventDetailPage: React.FC = () => {
                                                 color: s.attendance > 0 && s.attendance === statsHighlights.maxAttendance ? '#10b981' : 'inherit',
                                                 fontWeight: s.attendance > 0 && s.attendance === statsHighlights.maxAttendance ? 600 : 400
                                             }}>
-                                                {s.attendance}/{showAllSeasonsStats ? archivedTerms.length : filteredArchivedTerms.length}
+                                                {s.attendance}/{statsTotalTerms}
                                             </td>
                                             <td style={{
                                                 padding: '12px 16px',
@@ -1105,6 +996,7 @@ const EventDetailPage: React.FC = () => {
                     </div>
                 )}
             </div>
+            )}
 
             {/* Archived Terms Section */}
             <div className="dashboard" style={{ marginTop: '1rem', borderTop: '1px solid #e5e7eb', paddingTop: '2rem' }}>
@@ -1377,6 +1269,9 @@ const EventDetailPage: React.FC = () => {
                             setStatsTerm(null);
                             fetchEventDetails(); // Refresh to show new stats if needed
                             fetchArchivedTerms(); // Refresh archive to show new stats
+                            if (showStats) {
+                                fetchStats(); // Refresh global stats if visible
+                            }
                         }}
                     />
                 )
