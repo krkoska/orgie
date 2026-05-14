@@ -52,6 +52,30 @@ const getUniqueAttendees = <T extends { id: any; kind: 'USER' | 'GUEST' }>(atten
     });
 };
 
+function computeStreaks(results: ('WIN' | 'LOSS' | 'DRAW')[]): {
+    currentWinStreak: number;
+    currentLossStreak: number;
+    longestWinStreak: number;
+    longestLossStreak: number;
+} {
+    let tempWin = 0, tempLoss = 0, longestWin = 0, longestLoss = 0;
+    for (const r of results) {
+        if (r === 'WIN') {
+            tempWin++;
+            tempLoss = 0;
+            if (tempWin > longestWin) longestWin = tempWin;
+        } else if (r === 'LOSS') {
+            tempLoss++;
+            tempWin = 0;
+            if (tempLoss > longestLoss) longestLoss = tempLoss;
+        } else {
+            tempWin = 0;
+            tempLoss = 0;
+        }
+    }
+    return { currentWinStreak: tempWin, currentLossStreak: tempLoss, longestWinStreak: longestWin, longestLossStreak: longestLoss };
+}
+
 export const createEvent = async (req: Request, res: Response) => {
     try {
         const { name, place, type, startTime, endTime, date, recurrence, administrators, minAttendees, maxAttendees, activityType, seasons } = req.body;
@@ -957,6 +981,7 @@ export const getEventStats = async (req: Request, res: Response) => {
         const statsMap = new Map<string, {
             id: string; kind: 'USER' | 'GUEST'; name: string;
             attendance: number; wins: number; draws: number; losses: number; totalGames: number;
+            results: ('WIN' | 'LOSS' | 'DRAW')[];
         }>();
 
         // Initialize from current event participants (event.attendees.id is populated)
@@ -973,14 +998,14 @@ export const getEventStats = async (req: Request, res: Response) => {
                     const guest = (event.guests as any[]).find((g: any) => g._id.toString() === id);
                     if (guest) name = `${guest.firstName} ${guest.lastName}`;
                 }
-                statsMap.set(key, { id, kind: a.kind, name, attendance: 0, wins: 0, draws: 0, losses: 0, totalGames: 0 });
+                statsMap.set(key, { id, kind: a.kind, name, attendance: 0, wins: 0, draws: 0, losses: 0, totalGames: 0, results: [] });
             }
         });
         (event.guests as any[]).forEach((g: any) => {
             const key = `GUEST-${g._id}`;
             if (!statsMap.has(key)) {
                 const name = `${g.firstName} ${g.lastName}`;
-                statsMap.set(key, { id: g._id.toString(), kind: 'GUEST', name, attendance: 0, wins: 0, draws: 0, losses: 0, totalGames: 0 });
+                statsMap.set(key, { id: g._id.toString(), kind: 'GUEST', name, attendance: 0, wins: 0, draws: 0, losses: 0, totalGames: 0, results: [] });
             }
         });
 
@@ -1003,7 +1028,7 @@ export const getEventStats = async (req: Request, res: Response) => {
                         const guest = (event.guests as any[]).find((g: any) => g._id.toString() === id);
                         if (guest) name = `${guest.firstName} ${guest.lastName}`;
                     }
-                    statsMap.set(key, { id, kind: att.kind, name, attendance: 0, wins: 0, draws: 0, losses: 0, totalGames: 0 });
+                    statsMap.set(key, { id, kind: att.kind, name, attendance: 0, wins: 0, draws: 0, losses: 0, totalGames: 0, results: [] });
                 }
                 statsMap.get(key)!.attendance += 1;
             });
@@ -1036,6 +1061,7 @@ export const getEventStats = async (req: Request, res: Response) => {
                                 else if (outcome === 'DRAW') stats.draws += 1;
                                 else stats.losses += 1;
                                 stats.totalGames += 1;
+                                stats.results.push(outcome);
                             }
                         });
                     });
@@ -1043,11 +1069,12 @@ export const getEventStats = async (req: Request, res: Response) => {
             }
         });
 
-        const stats = Array.from(statsMap.values()).map(s => ({
+        const stats = Array.from(statsMap.values()).map(({ results, ...s }) => ({
             ...s,
             attendancePct: totalTerms > 0 ? (s.attendance / totalTerms) * 100 : 0,
             winPct: s.totalGames > 0 ? (s.wins / s.totalGames) * 100 : 0,
-            lossPct: s.totalGames > 0 ? (s.losses / s.totalGames) * 100 : 0
+            lossPct: s.totalGames > 0 ? (s.losses / s.totalGames) * 100 : 0,
+            ...computeStreaks(results)
         }));
 
         res.json({ totalTerms, filledTermsCount, stats });

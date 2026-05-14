@@ -90,6 +90,10 @@ interface PlayerStat {
     totalGames: number;
     winPct: number;
     lossPct: number;
+    currentWinStreak: number;
+    currentLossStreak: number;
+    longestWinStreak: number;
+    longestLossStreak: number;
 }
 
 const EventDetailPage: React.FC = () => {
@@ -487,7 +491,7 @@ const EventDetailPage: React.FC = () => {
     };
 
     const statsHighlights = React.useMemo(() => {
-        if (!globalStats.length) return { maxAttendance: -1, maxAttendancePct: -1, maxWinPct: -1, maxLossPct: -1, maxWins: -1, maxLosses: -1 };
+        if (!globalStats.length) return { maxAttendance: -1, maxAttendancePct: -1, maxWinPct: -1, maxLossPct: -1, maxWins: -1, maxLosses: -1, maxLongestWinStreak: -1, maxLongestLossStreak: -1 };
 
         // Only consider those who actually played at least one game for win/loss highlights
         const playedStats = globalStats.filter(s => s.totalGames > 0);
@@ -498,7 +502,9 @@ const EventDetailPage: React.FC = () => {
             maxWins: playedStats.length > 0 ? Math.max(...playedStats.map(s => s.wins)) : -1,
             maxLosses: playedStats.length > 0 ? Math.max(...playedStats.map(s => s.losses)) : -1,
             maxWinPct: playedStats.length > 0 ? Math.max(...playedStats.map(s => s.winPct)) : -1,
-            maxLossPct: playedStats.length > 0 ? Math.max(...playedStats.map(s => s.lossPct)) : -1
+            maxLossPct: playedStats.length > 0 ? Math.max(...playedStats.map(s => s.lossPct)) : -1,
+            maxLongestWinStreak: playedStats.length > 0 ? Math.max(...playedStats.map(s => s.longestWinStreak)) : -1,
+            maxLongestLossStreak: playedStats.length > 0 ? Math.max(...playedStats.map(s => s.longestLossStreak)) : -1
         };
     }, [globalStats]);
 
@@ -892,7 +898,15 @@ const EventDetailPage: React.FC = () => {
                         <table className="attendance-matrix" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                             <thead>
                                 <tr style={{ background: '#f9fafb' }}>
-                                    {[
+                                    {(() => {
+                                        interface StatColumn {
+                                            key: string;
+                                            label: string;
+                                            align: string;
+                                            teamOnly: boolean;
+                                            tooltip?: string;
+                                        }
+                                        return ([
                                         { key: 'name', label: t('participants'), align: 'left', teamOnly: false },
                                         { key: 'attendance', label: t('attendanceCount'), align: 'center', teamOnly: false },
                                         { key: 'attendancePct', label: t('attendancePercentage'), align: 'center', teamOnly: false },
@@ -900,11 +914,16 @@ const EventDetailPage: React.FC = () => {
                                         { key: 'draws', label: t('draws'), align: 'center', teamOnly: true },
                                         { key: 'losses', label: t('losses'), align: 'center', teamOnly: true },
                                         { key: 'winPct', label: t('winPercentage'), align: 'center', teamOnly: true },
-                                        { key: 'lossPct', label: t('lossPercentage'), align: 'center', teamOnly: true }
-                                    ].filter(col => !col.teamOnly || event.activityType === 'TEAM_SPORT').map(col => (
+                                        { key: 'lossPct', label: t('lossPercentage'), align: 'center', teamOnly: true },
+                                        { key: 'currentWinStreak',  label: t('currentWinStreak'),  tooltip: t('currentWinStreakFull'),  align: 'center', teamOnly: true },
+                                        { key: 'currentLossStreak', label: t('currentLossStreak'), tooltip: t('currentLossStreakFull'), align: 'center', teamOnly: true },
+                                        { key: 'longestWinStreak',  label: t('longestWinStreak'),  tooltip: t('longestWinStreakFull'),  align: 'center', teamOnly: true },
+                                        { key: 'longestLossStreak', label: t('longestLossStreak'), tooltip: t('longestLossStreakFull'), align: 'center', teamOnly: true }
+                                    ] as StatColumn[]).filter(col => !col.teamOnly || event.activityType === 'TEAM_SPORT').map(col => (
                                         <th
                                             key={col.key}
                                             onClick={() => handleSort(col.key)}
+                                            title={col.tooltip}
                                             style={{
                                                 padding: '12px 16px',
                                                 borderBottom: '1px solid #e5e7eb',
@@ -921,13 +940,14 @@ const EventDetailPage: React.FC = () => {
                                                 </span>
                                             </div>
                                         </th>
-                                    ))}
+                                    ));
+                                    })()}
                                 </tr>
                             </thead>
                             <tbody>
                                 {sortedStats.length === 0 ? (
                                     <tr>
-                                        <td colSpan={8} style={{ padding: '24px', textAlign: 'center', color: '#6b7280' }}>{t('noArchivedTerms')}</td>
+                                        <td colSpan={event?.activityType === 'TEAM_SPORT' ? 12 : 3} style={{ padding: '24px', textAlign: 'center', color: '#6b7280' }}>{t('noArchivedTerms')}</td>
                                     </tr>
                                 ) : (
                                     sortedStats.map(s => (
@@ -985,6 +1005,28 @@ const EventDetailPage: React.FC = () => {
                                                         fontWeight: s.lossPct > 0 && s.lossPct === statsHighlights.maxLossPct ? 600 : 400
                                                     }}>
                                                         {s.lossPct.toFixed(1)}%
+                                                    </td>
+                                                    <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                                                        {s.currentWinStreak}
+                                                    </td>
+                                                    <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                                                        {s.currentLossStreak}
+                                                    </td>
+                                                    <td style={{
+                                                        padding: '12px 16px',
+                                                        textAlign: 'center',
+                                                        color: s.longestWinStreak > 0 && s.longestWinStreak === statsHighlights.maxLongestWinStreak ? '#10b981' : 'inherit',
+                                                        fontWeight: s.longestWinStreak > 0 && s.longestWinStreak === statsHighlights.maxLongestWinStreak ? 600 : 400
+                                                    }}>
+                                                        {s.longestWinStreak}
+                                                    </td>
+                                                    <td style={{
+                                                        padding: '12px 16px',
+                                                        textAlign: 'center',
+                                                        color: s.longestLossStreak > 0 && s.longestLossStreak === statsHighlights.maxLongestLossStreak ? '#ef4444' : 'inherit',
+                                                        fontWeight: s.longestLossStreak > 0 && s.longestLossStreak === statsHighlights.maxLongestLossStreak ? 600 : 400
+                                                    }}>
+                                                        {s.longestLossStreak}
                                                     </td>
                                                 </>
                                             )}
