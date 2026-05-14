@@ -440,23 +440,6 @@ const EventDetailPage: React.FC = () => {
         });
     }, [archivedTerms, event, selectedSeasonIdx]);
 
-    const allSeasonsArchivedTerms = React.useMemo(() => {
-        if (!event?.seasons || event.seasons.length === 0) {
-            return archivedTerms;
-        }
-        return archivedTerms.filter(t => {
-            const termDate = new Date(t.date);
-            termDate.setHours(0, 0, 0, 0);
-            return event.seasons.some(season => {
-                const start = new Date(season.startDate);
-                start.setHours(0, 0, 0, 0);
-                const end = season.endDate ? new Date(season.endDate) : new Date(8640000000000000);
-                if (season.endDate) end.setHours(23, 59, 59, 999);
-                return termDate >= start && termDate <= end;
-            });
-        });
-    }, [archivedTerms, event?.seasons]);
-
     const handleFetchArchivedTerms = async () => {
         if (!event) return;
         if (showArchive) {
