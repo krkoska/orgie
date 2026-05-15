@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import api from '../services/api';
+import PasswordInput from '../components/PasswordInput';
 
 const ResetPassword: React.FC = () => {
     const { token } = useParams<{ token: string }>();
@@ -51,23 +52,11 @@ const ResetPassword: React.FC = () => {
                     <form onSubmit={handleSubmit}>
                         <div className="form-group">
                             <label htmlFor="password">{t('newPassword')}</label>
-                            <input
-                                type="password"
-                                id="password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                required
-                            />
+                            <PasswordInput id="password" value={password} onChange={(e) => setPassword(e.target.value)} required showPolicy />
                         </div>
                         <div className="form-group">
                             <label htmlFor="confirmPassword">{t('confirmNewPassword')}</label>
-                            <input
-                                type="password"
-                                id="confirmPassword"
-                                value={confirmPassword}
-                                onChange={(e) => setConfirmPassword(e.target.value)}
-                                required
-                            />
+                            <PasswordInput id="confirmPassword" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
                         </div>
                         <button type="submit" className="btn-full" disabled={loading}>
                             {loading ? t('loading') : t('saveNewPassword')}

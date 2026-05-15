@@ -198,6 +198,9 @@ const translations: Translations = {
     'saveNewPassword': { en: 'Save New Password', cs: 'Uložit nové heslo' },
     'checkEmailMsg': { en: 'If an account with this email exists, a reset link has been sent.', cs: 'Pokud existuje účet s tímto e-mailem, byl na něj odeslán odkaz pro obnovu hesla.' },
     'passwordResetSuccess': { en: 'Password reset successful. You can now login.', cs: 'Heslo bylo úspěšně změněno. Nyní se můžete přihlásit.' },
+    'passwordPolicyHint': { en: 'At least 8 characters, 1 uppercase letter and 1 number.', cs: 'Alespoň 8 znaků, 1 velké písmeno a 1 číslo.' },
+    'showPassword': { en: 'Show password', cs: 'Zobrazit heslo' },
+    'hidePassword': { en: 'Hide password', cs: 'Skrýt heslo' },
 
     // Poll feature
     'polls': { en: 'Polls', cs: 'Hlasování' },

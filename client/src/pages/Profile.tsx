@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import PasswordInput from '../components/PasswordInput';
 
 const Profile: React.FC = () => {
     const { user, login } = useAuth();
@@ -103,11 +104,11 @@ const Profile: React.FC = () => {
 
                 <div className="form-group">
                     <label>{t('newPasswordLabel')}</label>
-                    <input type="password" name="password" value={formData.password} onChange={handleChange} />
+                    <PasswordInput name="password" value={formData.password} onChange={handleChange} showPolicy />
                 </div>
                 <div className="form-group">
                     <label>{t('confirmNewPasswordLabel')}</label>
-                    <input type="password" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} required={!!formData.password} />
+                    <PasswordInput name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} required={!!formData.password} />
                 </div>
 
                 <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem', justifyContent: 'flex-end' }}>

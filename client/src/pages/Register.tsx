@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import api from '../services/api';
+import PasswordInput from '../components/PasswordInput';
 
 const Register: React.FC = () => {
     const [formData, setFormData] = useState({
@@ -87,11 +88,11 @@ const Register: React.FC = () => {
                 </div>
                 <div className="form-group">
                     <label htmlFor="password">{t('password') || 'Password'}</label>
-                    <input type="password" id="password" name="password" value={formData.password} onChange={handleChange} required autoComplete="new-password" />
+                    <PasswordInput id="password" name="password" value={formData.password} onChange={handleChange} required autoComplete="new-password" showPolicy />
                 </div>
                 <div className="form-group">
                     <label htmlFor="confirmPassword">{t('confirmPassword') || 'Confirm Password'}</label>
-                    <input type="password" id="confirmPassword" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} required autoComplete="new-password" />
+                    <PasswordInput id="confirmPassword" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} required autoComplete="new-password" />
                 </div>
                 <button type="submit" className="btn-full">{t('register')}</button>
             </form>

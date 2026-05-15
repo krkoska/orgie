@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import api from '../services/api';
+import PasswordInput from '../components/PasswordInput';
 
 const Login: React.FC = () => {
     const [email, setEmail] = useState('');
@@ -50,8 +51,7 @@ const Login: React.FC = () => {
                 </div>
                 <div className="form-group">
                     <label htmlFor="password">{t('passwordLabel')}</label>
-                    <input
-                        type="password"
+                    <PasswordInput
                         id="password"
                         name="password"
                         value={password}
