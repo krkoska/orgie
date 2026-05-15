@@ -546,8 +546,10 @@ export const toggleTermAttendance = async (req: Request, res: Response) => {
             }
         }
 
+        const originalAttendees = JSON.parse(JSON.stringify(term.attendees));
+
         // Atomic toggle using deterministic check
-        const isAttending = term.attendees.some((a: any) => 
+        const isAttending = term.attendees.some((a: any) =>
             a.id && a.id.toString() === targetUserId && a.kind === kind
         );
 
@@ -575,8 +577,6 @@ export const toggleTermAttendance = async (req: Request, res: Response) => {
             );
         }
 
-        const originalAttendees = JSON.parse(JSON.stringify(term.attendees));
-
         // Populate attendees for response
         const populatedTerm = await Term.findById(term._id).populate({
             path: 'attendees.id',
@@ -585,10 +585,12 @@ export const toggleTermAttendance = async (req: Request, res: Response) => {
         });
 
         if (populatedTerm) {
-            (populatedTerm.attendees as any) = (populatedTerm.attendees as any).map((a: any, idx: number) => {
-                if (a.kind === 'GUEST' && (a.id === null || a.id === undefined)) {
-                    const origId = originalAttendees[idx]?.id;
-                    return { ...a, id: origId ? origId.toString() : null };
+            (populatedTerm.attendees as any) = (populatedTerm.attendees as any).map((a: any) => {
+                if (a.id === null || a.id === undefined) {
+                    const orig = (originalAttendees as any[]).find(
+                        (o: any) => o._id?.toString() === a._id?.toString()
+                    );
+                    return orig ? { ...a, id: orig.id?.toString() ?? null } : a;
                 }
                 return a;
             });
@@ -631,9 +633,11 @@ export const toggleEventAttendance = async (req: Request, res: Response) => {
         }
 
         // Better logic: use the loaded document to check presence
-        const isAttending = event.attendees.some((a: any) => 
+        const isAttending = event.attendees.some((a: any) =>
             a.id && a.id.toString() === targetUserId && a.kind === kind
         );
+
+        const originalAttendees = JSON.parse(JSON.stringify(event.attendees));
 
         if (isAttending) {
             await Event.updateOne(
@@ -647,7 +651,24 @@ export const toggleEventAttendance = async (req: Request, res: Response) => {
             );
         }
 
-        const updatedEvent = await Event.findById(event._id);
+        const updatedEvent = await Event.findById(event._id).populate({
+            path: 'attendees.id',
+            model: 'User',
+            select: 'firstName lastName nickname preferNickname email'
+        });
+
+        if (updatedEvent) {
+            (updatedEvent.attendees as any) = (updatedEvent.attendees as any).map((a: any) => {
+                if (a.id === null || a.id === undefined) {
+                    const orig = (originalAttendees as any[]).find(
+                        (o: any) => o._id?.toString() === a._id?.toString()
+                    );
+                    return orig ? { ...a, id: orig.id?.toString() ?? null } : a;
+                }
+                return a;
+            });
+        }
+
         res.json({ attendees: updatedEvent?.attendees || [] });
     } catch (error: any) {
         logger.error('Error toggling event attendance', { error: error.message, eventUuid: req.params.uuid, userId: (req as any).user._id });

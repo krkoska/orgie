@@ -298,8 +298,9 @@ const EventDetailPage: React.FC = () => {
 
     const handleAttendanceToggle = async (termId: string, userId?: string, kind: 'USER' | 'GUEST' = 'USER') => {
         try {
-            await api.post(`/events/terms/${termId}/attendance`, { userId, kind });
-            await refreshData();
+            const { data } = await api.post(`/events/terms/${termId}/attendance`, { userId, kind });
+            setTerms(prev => prev.map(t => t._id === data.term._id ? data.term : t));
+            setArchivedTerms(prev => prev.map(t => t._id === data.term._id ? data.term : t));
             showToast(t('attendanceUpdated') || 'Attendance updated', 'success');
         } catch (error: any) {
             showToast(error.response?.data?.message || 'Failed to update attendance', 'error');
@@ -309,8 +310,8 @@ const EventDetailPage: React.FC = () => {
     const handleToggleEventAttendance = async () => {
         if (!event) return;
         try {
-            await api.post(`/events/${event.uuid}/attendance`, {});
-            await refreshData();
+            const { data } = await api.post(`/events/${event.uuid}/attendance`, {});
+            setEvent(prev => prev ? { ...prev, attendees: data.attendees } : prev);
             showToast(t('attendanceUpdated') || 'Attendance updated', 'success');
         } catch (error: any) {
             showToast(error.response?.data?.message || 'Failed to update attendance', 'error');
