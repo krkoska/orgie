@@ -79,7 +79,7 @@ interface ToastContextType {
 
 - Action toasts use a timeout of 8 seconds (vs. 4 seconds for standard toasts).
 - The toast renders an `<a>` link button to the right of the message, before the dismiss (×) button.
-- Clicking the link closes the toast and navigates to the href.
+- Clicking the link navigates to the href. The toast auto-dismisses after 8 seconds; there is no need to explicitly close it on click since the page navigates away.
 
 Visual layout:
 
