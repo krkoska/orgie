@@ -11,9 +11,9 @@ interface Participant {
 interface Team {
     name: string;
     members: Participant[];
-    wins: number;
-    draws: number;
-    losses: number;
+    wins: string;
+    draws: string;
+    losses: string;
 }
 
 interface TermStatsModalProps {
@@ -43,9 +43,9 @@ const TermStatsModal: React.FC<TermStatsModalProps> = ({ termId, participants, i
         if (initialStats && initialStats.teams.length > 0) {
             const initialTeams: Team[] = initialStats.teams.map(it => ({
                 name: it.name,
-                wins: it.wins,
-                draws: it.draws,
-                losses: it.losses,
+                wins: String(it.wins),
+                draws: String(it.draws),
+                losses: String(it.losses),
                 members: it.members
                     .map(m => participants.find(p => p.id === m.id && p.kind === m.kind))
                     .filter((found): found is Participant => !!found)
@@ -61,9 +61,9 @@ const TermStatsModal: React.FC<TermStatsModalProps> = ({ termId, participants, i
             const defaultTeams: Team[] = Array.from({ length: numTeams }, (_, i) => ({
                 name: `${t('team')} ${i + 1}`,
                 members: [],
-                wins: 0,
-                draws: 0,
-                losses: 0
+                wins: '',
+                draws: '',
+                losses: ''
             }));
             setTeams(defaultTeams);
             setUnassigned(participants);
@@ -78,9 +78,9 @@ const TermStatsModal: React.FC<TermStatsModalProps> = ({ termId, participants, i
                 const added = Array.from({ length: n - prev.length }, (_, i) => ({
                     name: `${t('team')} ${prev.length + i + 1}`,
                     members: [],
-                    wins: 0,
-                    draws: 0,
-                    losses: 0
+                    wins: '',
+                    draws: '',
+                    losses: ''
                 }));
                 return [...prev, ...added];
             } else {
@@ -113,9 +113,9 @@ const TermStatsModal: React.FC<TermStatsModalProps> = ({ termId, participants, i
             const statistics = {
                 teams: teams.map(team => ({
                     name: team.name,
-                    wins: team.wins,
-                    draws: team.draws,
-                    losses: team.losses,
+                    wins: parseInt(team.wins) || 0,
+                    draws: parseInt(team.draws) || 0,
+                    losses: parseInt(team.losses) || 0,
                     members: team.members.map(m => ({ id: m.id, kind: m.kind }))
                 }))
             };
@@ -131,17 +131,20 @@ const TermStatsModal: React.FC<TermStatsModalProps> = ({ termId, participants, i
     };
 
     const termOutcome = React.useMemo(() => {
-        const teamsWithGames = teams.filter(t => (t.wins + t.draws + t.losses) > 0);
+        const nWins = (t: Team) => parseInt(t.wins) || 0;
+        const nDraws = (t: Team) => parseInt(t.draws) || 0;
+        const nLosses = (t: Team) => parseInt(t.losses) || 0;
+        const teamsWithGames = teams.filter(t => (nWins(t) + nDraws(t) + nLosses(t)) > 0);
         if (teamsWithGames.length === 0) return null;
 
         const sorted = [...teamsWithGames].sort((a, b) => {
-            if (b.wins !== a.wins) return b.wins - a.wins;
-            if (b.draws !== a.draws) return b.draws - a.draws;
-            return a.losses - b.losses;
+            if (nWins(b) !== nWins(a)) return nWins(b) - nWins(a);
+            if (nDraws(b) !== nDraws(a)) return nDraws(b) - nDraws(a);
+            return nLosses(a) - nLosses(b);
         });
 
         const best = sorted[0];
-        const topTeams = sorted.filter(t => t.wins === best.wins && t.draws === best.draws && t.losses === best.losses);
+        const topTeams = sorted.filter(t => nWins(t) === nWins(best) && nDraws(t) === nDraws(best) && nLosses(t) === nLosses(best));
         const singleWinner = topTeams.length === 1;
 
         return teamsWithGames.map(team => {
@@ -239,15 +242,15 @@ const TermStatsModal: React.FC<TermStatsModalProps> = ({ termId, participants, i
                                     <div className="team-results">
                                         <div className="res-group">
                                             <label>{t('wins')}</label>
-                                            <input type="number" min="0" value={team.wins} onChange={(e) => setTeams(prev => prev.map((t, i) => i === idx ? { ...t, wins: Math.max(0, parseInt(e.target.value) || 0) } : t))} />
+                                            <input type="number" min="0" value={team.wins} onChange={(e) => setTeams(prev => prev.map((t, i) => i === idx ? { ...t, wins: e.target.value } : t))} />
                                         </div>
                                         <div className="res-group">
                                             <label>{t('draws')}</label>
-                                            <input type="number" min="0" value={team.draws} onChange={(e) => setTeams(prev => prev.map((t, i) => i === idx ? { ...t, draws: Math.max(0, parseInt(e.target.value) || 0) } : t))} />
+                                            <input type="number" min="0" value={team.draws} onChange={(e) => setTeams(prev => prev.map((t, i) => i === idx ? { ...t, draws: e.target.value } : t))} />
                                         </div>
                                         <div className="res-group">
                                             <label>{t('losses')}</label>
-                                            <input type="number" min="0" value={team.losses} onChange={(e) => setTeams(prev => prev.map((t, i) => i === idx ? { ...t, losses: Math.max(0, parseInt(e.target.value) || 0) } : t))} />
+                                            <input type="number" min="0" value={team.losses} onChange={(e) => setTeams(prev => prev.map((t, i) => i === idx ? { ...t, losses: e.target.value } : t))} />
                                         </div>
                                     </div>
 
