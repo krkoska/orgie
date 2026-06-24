@@ -1,0 +1,169 @@
+/* ── Shared ─────────────────────────────────────────────── */
+
+.as-section-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin: 0 0 10px;
+}
+
+.as-no-data {
+    color: #9ca3af;
+    font-style: italic;
+    margin: 0;
+}
+
+/* ── TeamStatsTab ────────────────────────────────────────── */
+
+.as-team-tab {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.as-freq-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.as-freq-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 10px 14px;
+}
+
+.as-freq-row-name {
+    color: #111827;
+    font-weight: 500;
+}
+
+.as-freq-row-count {
+    font-weight: 700;
+    font-size: 15px;
+}
+
+.as-expand-btn {
+    margin-top: 8px;
+    background: none;
+    border: none;
+    font-size: 13px;
+    cursor: pointer;
+    padding: 4px 0;
+    font-weight: 500;
+}
+
+.as-succ-table-wrap {
+    overflow-x: auto;
+}
+
+.as-succ-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.as-succ-table thead tr {
+    background: #f9fafb;
+}
+
+.as-succ-table th {
+    padding: 10px 14px;
+    font-weight: 600;
+    color: #374151;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.as-succ-table th:first-child { text-align: left; }
+.as-succ-table th:not(:first-child) { text-align: center; }
+
+.as-succ-table td {
+    padding: 10px 14px;
+}
+
+.as-succ-table td:first-child {
+    font-weight: 500;
+    color: #111827;
+}
+
+.as-succ-table td:not(:first-child) {
+    text-align: center;
+    font-weight: 700;
+    color: #10b981;
+}
+
+.as-succ-table tbody tr:not(:last-child) td {
+    border-bottom: 1px solid #f3f4f6;
+}
+
+/* ── AttendanceTab ───────────────────────────────────────── */
+
+.as-attendance-tab {
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+}
+
+.as-bar-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.as-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 10px 14px;
+}
+
+.as-bar-row-label {
+    font-weight: 600;
+    color: #111827;
+    min-width: 70px;
+}
+
+.as-bar-track {
+    flex: 1;
+    background: #e5e7eb;
+    border-radius: 4px;
+    height: 10px;
+    overflow: hidden;
+}
+
+.as-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+}
+
+.as-bar-row-value {
+    font-weight: 700;
+    min-width: 32px;
+    text-align: right;
+}
+
+/* ── AttendanceChart ─────────────────────────────────────── */
+
+.as-chart {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.as-chart-no-data {
+    color: #9ca3af;
+    font-style: italic;
+    margin: 0;
+}

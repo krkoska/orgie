@@ -10,6 +10,7 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Profile from './pages/Profile';
 import EventDetailPage from './pages/EventDetailPage';
+import AdvancedStatsPage from './pages/AdvancedStatsPage';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import PollPage from './pages/PollPage';
@@ -46,6 +47,7 @@ const AppRoutes: React.FC = () => {
             </PrivateRoute>
           } />
           <Route path="/event/:uuid" element={<EventDetailPage />} />
+          <Route path="/event/:uuid/advanced-stats" element={<AdvancedStatsPage />} />
           <Route path="/poll/:uuid" element={<PollPage />} />
           <Route path="/" element={
             <PrivateRoute>

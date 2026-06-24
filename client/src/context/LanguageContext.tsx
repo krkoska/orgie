@@ -238,6 +238,28 @@ const translations: Translations = {
     'pollOptionPlaceholder': { en: 'Option text',           cs: 'Text možnosti' },
     'pollAtLeastTwoOptions': { en: 'Enter at least 2 options', cs: 'Zadejte alespoň 2 možnosti' },
     'pollWinnerOption':      { en: 'Winning option',        cs: 'Vítězná možnost' },
+
+    // Advanced Statistics
+    'advancedStats':        { en: 'Advanced Statistics', cs: 'Pokročilé statistiky' },
+    'teamStats':            { en: 'Team Stats', cs: 'Týmové stats' },
+    'attendanceTab':        { en: 'Attendance', cs: 'Účast' },
+    'mostFreqPairs':        { en: 'Most frequent pairs', cs: 'Nejčastější dvojice' },
+    'mostSuccPairs':        { en: 'Most successful pairs', cs: 'Nejúspěšnější dvojice' },
+    'mostFreqTrios':        { en: 'Most frequent trios', cs: 'Nejčastější trojice' },
+    'mostSuccTrios':        { en: 'Most successful trios', cs: 'Nejúspěšnější trojice' },
+    'showAll':              { en: 'Show all ({n})', cs: 'Zobrazit všechny ({n})' },
+    'colPair':              { en: 'Pair', cs: 'Dvojice' },
+    'colTrio':              { en: 'Trio', cs: 'Trojice' },
+    'colWins':              { en: 'Wins', cs: 'Výhry' },
+    'colWinPct':            { en: 'Win %', cs: '% výher' },
+    'attendanceByPlayers':  { en: 'Terms by player count', cs: 'Termíny podle počtu hráčů' },
+    'attendanceByTeams':    { en: 'Terms by team count', cs: 'Termíny podle počtu týmů' },
+    'attendanceChart':      { en: 'Attendance over season', cs: 'Vývoj účasti v sezoně' },
+    'avgAttendance':        { en: 'avg.', cs: 'prům.' },
+    'players':              { en: 'players', cs: 'hráčů' },
+    'teams':                { en: 'teams', cs: 'týmů' },
+    'noDataYet':            { en: 'No data yet', cs: 'Zatím žádná data' },
+    'hide':                 { en: 'Hide', cs: 'Skrýt' },
 };
 
 interface LanguageContextType {

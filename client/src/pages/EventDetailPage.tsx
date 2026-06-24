@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useToast } from '../context/ToastContext';
@@ -9,7 +9,7 @@ import Modal from '../components/Modal';
 import EventForm, { EventType, RecurrenceFrequency, type EventFormData } from '../components/EventForm';
 import TermAttendanceMatrix from '../components/TermAttendanceMatrix';
 import TermStatsModal from '../components/TermStatsModal';
-import { Edit, Calendar, Trash2, Grid, Table, UserPlus, UserCheck, Trophy, ChevronUp, ChevronDown } from 'lucide-react';
+import { Edit, Calendar, Trash2, Grid, Table, UserPlus, UserCheck, Trophy, ChevronUp, ChevronDown, BarChart2 } from 'lucide-react';
 import { getUniqueAttendees } from '../utils/attendance';
 
 interface User {
@@ -843,7 +843,7 @@ const EventDetailPage: React.FC = () => {
             {user && (
             <div className="dashboard" style={{ marginTop: '1rem', borderTop: '1px solid #e5e7eb', paddingTop: '2rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-                    <h2 style={{ fontSize: '1.5rem', fontWeight: 600, color: '#1f2937', margin: 0 }}>
+                    <h2 style={{ fontSize: '1.5rem', fontWeight: 600, color: '#1f2937', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                         {t('statistics')}{' '}
                         {showStats && (
                             <span
@@ -853,6 +853,13 @@ const EventDetailPage: React.FC = () => {
                                 ({statsFilledCount}/{statsTotalTerms})
                             </span>
                         )}
+                        <Link
+                            to={`/event/${uuid}/advanced-stats`}
+                            title={t('advancedStats')}
+                            style={{ color: '#6b7280', display: 'flex', alignItems: 'center' }}
+                        >
+                            <BarChart2 size={20} />
+                        </Link>
                     </h2>
                     <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                         {event.seasons && event.seasons.length > 0 && showStats && (

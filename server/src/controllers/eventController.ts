@@ -914,6 +914,299 @@ export const updateTermStatistics = async (req: Request, res: Response) => {
     }
 };
 
+// Vrací archivované termíny pro daný event, populate attendees.id
+const getPopulatedArchivedTerms = async (
+    eventId: string,
+    seasonIdx: number | null
+): Promise<{ fixedTerms: any[]; event: any }> => {
+    const event = await Event.findById(eventId)
+        .populate('ownerId', 'firstName lastName nickname preferNickname')
+        .populate('administrators', 'firstName lastName nickname preferNickname');
+    if (!event) throw new Error('Event not found');
+
+    const eventObj = (event as any).toObject ? (event as any).toObject() : event;
+
+    const now = new Date();
+    const today = new Date(now);
+    today.setHours(0, 0, 0, 0);
+    const nextDay = new Date(today);
+    nextDay.setDate(nextDay.getDate() + 1);
+
+    const allTermsBeforeOrToday = await Term.find({
+        eventId: eventId,
+        date: { $lt: nextDay }
+    }).sort({ date: 1 });
+
+    const currentWallClock = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Europe/Prague',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', hour12: false
+    }).formatToParts(now);
+
+    const findPart = (type: string) => currentWallClock.find(p => p.type === type)?.value;
+    const nowDateStr = `${findPart('year')}-${findPart('month')}-${findPart('day')}`;
+    const nowTimeStr = `${findPart('hour')}:${findPart('minute')}`;
+
+    let archivedTerms = allTermsBeforeOrToday.filter((t: any) => {
+        const termDateStr = new Date(t.date).toISOString().split('T')[0];
+        if (termDateStr < nowDateStr) return true;
+        if (termDateStr > nowDateStr) return false;
+        return nowTimeStr >= t.endTime;
+    });
+
+    // Season filtering with proper end-of-day normalization
+    if (seasonIdx !== null && eventObj.seasons && eventObj.seasons[seasonIdx]) {
+        const season = eventObj.seasons[seasonIdx];
+        const start = new Date(season.startDate);
+        start.setHours(0, 0, 0, 0);
+        const end = season.endDate ? new Date(season.endDate) : new Date(8640000000000000);
+        if (season.endDate) end.setHours(23, 59, 59, 999);
+        archivedTerms = archivedTerms.filter((t: any) => {
+            const d = new Date(new Date(t.date).toISOString().split('T')[0]);
+            return d >= start && d <= end;
+        });
+    }
+
+    const originalAttendeesPerTerm = archivedTerms.map((t: any) =>
+        JSON.parse(JSON.stringify(t.attendees))
+    );
+
+    const populatedTerms = await Promise.all(
+        archivedTerms.map((t: any) =>
+            Term.findById(t._id).populate({
+                path: 'attendees.id',
+                model: 'User',
+                select: 'firstName lastName nickname preferNickname'
+            })
+        )
+    );
+
+    const fixedTerms = populatedTerms.map((t: any, tIdx: number) => {
+        if (!t) return null;
+        const termObj = t.toObject();
+        termObj.attendees = termObj.attendees.map((a: any, aIdx: number) => {
+            if (a.id === null || a.id === undefined) {
+                const origId = originalAttendeesPerTerm[tIdx][aIdx]?.id;
+                return { ...a, id: origId ? origId.toString() : null };
+            }
+            return a;
+        });
+        return termObj;
+    }).filter(Boolean);
+
+    return { fixedTerms, event: eventObj };
+};
+
+export const getAdvancedTeamStats = async (req: Request, res: Response) => {
+    try {
+        const event = await Event.findOne({ uuid: req.params.uuid });
+        if (!event) return res.status(404).json({ message: 'Event not found' });
+
+        const seasonIdx = req.query.seasonIdx !== undefined ? Number(req.query.seasonIdx) : null;
+        const { fixedTerms, event: eventObj2 } = await getPopulatedArchivedTerms(
+            (event._id as any).toString(),
+            seasonIdx
+        );
+
+        // Helper: jméno účastníka
+        const getName = (a: any): string => {
+            const rawId = typeof a.id === 'object' && a.id !== null ? (a.id._id ?? a.id) : a.id;
+            const idStr = rawId?.toString();
+
+            if (a.kind === 'USER') {
+                // Populated object directly on a.id
+                if (typeof a.id === 'object' && a.id !== null && a.id.firstName) {
+                    const u = a.id;
+                    return u.preferNickname && u.nickname ? u.nickname : `${u.firstName} ${u.lastName}`;
+                }
+                // Fall back to event attendees list (populated)
+                const evAtt = (eventObj2.attendees as any[]).find(
+                    (ea: any) => ea.kind === 'USER' &&
+                        (ea.id?._id?.toString() || ea.id?.toString()) === idStr
+                );
+                if (evAtt && typeof evAtt.id === 'object' && evAtt.id?.firstName) {
+                    const u = evAtt.id;
+                    return u.preferNickname && u.nickname ? u.nickname : `${u.firstName} ${u.lastName}`;
+                }
+                return 'Unknown';
+            }
+
+            // GUEST: look up by id in event.guests
+            const guest = (eventObj2.guests as any[]).find((g: any) => g._id.toString() === idStr);
+            if (guest) return `${guest.firstName} ${guest.lastName}`;
+            return 'Guest';
+        };
+        const getKey = (a: any): string => {
+            const id = typeof a.id === 'object' && a.id !== null ? (a.id._id ?? a.id).toString() : a.id;
+            return `${a.kind}-${id}`;
+        };
+
+        // Mapa: klíč dvojice/trojice → { players, count, wins, gamesTotal }
+        const pairsFreq = new Map<string, { players: {id:string,kind:string,name:string}[], count:number }>();
+        const pairsWin  = new Map<string, { players: {id:string,kind:string,name:string}[], wins:number, total:number }>();
+        const triosFreq = new Map<string, { players: {id:string,kind:string,name:string}[], count:number }>();
+        const triosWin  = new Map<string, { players: {id:string,kind:string,name:string}[], wins:number, total:number }>();
+
+        const termsWithStats = fixedTerms.filter((t: any) => t.statistics?.teams?.length > 0);
+
+        for (const term of termsWithStats) {
+            // Zjisti výsledek každého týmu
+            const teams: { members: any[]; wins: number; draws: number; losses: number }[] = term.statistics.teams.map((team: any) => {
+                // Populate member info z attendees
+                const members = (team.members || []).map((m: any) => {
+                    const idStr = m.id.toString();
+                    const att = term.attendees.find(
+                        (a: any) => a.kind === m.kind &&
+                            (a.id?._id?.toString() || a.id?.toString()) === idStr
+                    );
+                    // Fall back to synthetic entry so the member still counts in pairs/trios
+                    return att || { kind: m.kind, id: m.id };
+                });
+
+                return { members, wins: team.wins || 0, draws: team.draws || 0, losses: team.losses || 0 };
+            });
+
+            // Najdi vítěze (nejvíce výher; remíza = více týmů sdílí max)
+            const maxWins = Math.max(...teams.map((t: any) => t.wins));
+            const isWinner = (t: any) => maxWins > 0 && t.wins === maxWins;
+
+            for (const team of teams as any[]) {
+                const members = team.members;
+                const won = isWinner(team);
+
+                // Kombinace dvojic
+                for (let i = 0; i < members.length; i++) {
+                    for (let j = i + 1; j < members.length; j++) {
+                        const pair = [members[i], members[j]].sort((a, b) => getKey(a).localeCompare(getKey(b)));
+                        const key = pair.map(getKey).join('|');
+                        const players = pair.map(a => ({ id: getKey(a), kind: a.kind, name: getName(a) }));
+
+                        if (!pairsFreq.has(key)) pairsFreq.set(key, { players, count: 0 });
+                        pairsFreq.get(key)!.count++;
+
+                        if (!pairsWin.has(key)) pairsWin.set(key, { players, wins: 0, total: 0 });
+                        pairsWin.get(key)!.total++;
+                        if (won) pairsWin.get(key)!.wins++;
+                    }
+                }
+
+                // Kombinace trojic
+                for (let i = 0; i < members.length; i++) {
+                    for (let j = i + 1; j < members.length; j++) {
+                        for (let k = j + 1; k < members.length; k++) {
+                            const trio = [members[i], members[j], members[k]].sort((a, b) => getKey(a).localeCompare(getKey(b)));
+                            const key = trio.map(getKey).join('|');
+                            const players = trio.map(a => ({ id: getKey(a), kind: a.kind, name: getName(a) }));
+
+                            if (!triosFreq.has(key)) triosFreq.set(key, { players, count: 0 });
+                            triosFreq.get(key)!.count++;
+
+                            if (!triosWin.has(key)) triosWin.set(key, { players, wins: 0, total: 0 });
+                            triosWin.get(key)!.total++;
+                            if (won) triosWin.get(key)!.wins++;
+                        }
+                    }
+                }
+            }
+        }
+
+        const sortDesc = (arr: any[], key: string) => arr.sort((a, b) => b[key] - a[key]);
+        const sortSuccessDesc = (arr: any[]) => arr.sort((a, b) => b.winPct - a.winPct || b.total - a.total);
+
+        res.json({
+            pairsFrequency: sortDesc(Array.from(pairsFreq.values()), 'count'),
+            pairsSuccess: sortSuccessDesc(
+                Array.from(pairsWin.values()).map(p => ({
+                    players: p.players,
+                    wins: p.wins,
+                    total: p.total,
+                    winPct: p.total > 0 ? Math.round((p.wins / p.total) * 1000) / 10 : 0
+                }))
+            ),
+            triosFrequency: sortDesc(Array.from(triosFreq.values()), 'count'),
+            triosSuccess: sortSuccessDesc(
+                Array.from(triosWin.values()).map(p => ({
+                    players: p.players,
+                    wins: p.wins,
+                    total: p.total,
+                    winPct: p.total > 0 ? Math.round((p.wins / p.total) * 1000) / 10 : 0
+                }))
+            )
+        });
+    } catch (error: any) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const getAdvancedAttendanceStats = async (req: Request, res: Response) => {
+    try {
+        const event = await Event.findOne({ uuid: req.params.uuid });
+        if (!event) return res.status(404).json({ message: 'Event not found' });
+
+        const seasonIdx = req.query.seasonIdx !== undefined ? Number(req.query.seasonIdx) : null;
+        const { fixedTerms } = await getPopulatedArchivedTerms(
+            (event._id as any).toString(),
+            seasonIdx
+        );
+
+        // Pomocná: unikátní účastníci termínu
+        const uniqueCount = (term: any): number => {
+            const seen = new Set<string>();
+            for (const a of term.attendees) {
+                const key = a.kind === 'GUEST'
+                    ? `GUEST-${a.id?.toString() || 'unknown'}`
+                    : `USER-${a.id?._id?.toString() || a.id?.toString()}`;
+                seen.add(key);
+            }
+            return seen.size;
+        };
+
+        // Timeline — každý termín s datem, týdnem, měsícem a počtem hráčů
+        const locale = (req.query.lang as string) || 'cs';
+        const monthNames: Record<string, string[]> = {
+            cs: ['leden','únor','březen','duben','květen','červen','červenec','srpen','září','říjen','listopad','prosinec'],
+            en: ['January','February','March','April','May','June','July','August','September','October','November','December']
+        };
+        const months = monthNames[locale] || monthNames['cs'];
+
+        const timeline = fixedTerms.map((term: any, idx: number) => {
+            const date = new Date(term.date);
+            return {
+                date: date.toISOString().slice(0, 10),
+                week: idx + 1,
+                month: months[date.getMonth()],
+                attendeeCount: uniqueCount(term)
+            };
+        });
+
+        // Distribuce podle počtu hráčů
+        const byPlayerCountMap = new Map<number, number>();
+        for (const t of fixedTerms) {
+            const c = uniqueCount(t);
+            byPlayerCountMap.set(c, (byPlayerCountMap.get(c) || 0) + 1);
+        }
+        const byPlayerCount = Array.from(byPlayerCountMap.entries())
+            .sort((a, b) => a[0] - b[0])
+            .map(([count, terms]) => ({ count, terms }));
+
+        // Distribuce podle počtu týmů
+        const byTeamCountMap = new Map<number, number>();
+        for (const t of fixedTerms) {
+            if (t.statistics?.teams?.length > 0) {
+                const n = t.statistics.teams.length;
+                byTeamCountMap.set(n, (byTeamCountMap.get(n) || 0) + 1);
+            }
+        }
+        const byTeamCount = Array.from(byTeamCountMap.entries())
+            .sort((a, b) => a[0] - b[0])
+            .map(([teams, terms]) => ({ teams, terms }));
+
+        res.json({ timeline, byPlayerCount, byTeamCount });
+    } catch (error: any) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 export const getEventStats = async (req: Request, res: Response) => {
     try {
         const event = await Event.findOne({ uuid: req.params.uuid })

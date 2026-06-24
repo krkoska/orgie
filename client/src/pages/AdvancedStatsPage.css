@@ -1,0 +1,71 @@
+.asp-page {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 1.5rem 1rem;
+}
+
+.asp-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 1.5rem;
+}
+
+.asp-back-link {
+    color: #6b7280;
+    display: flex;
+    align-items: center;
+}
+
+.asp-title {
+    margin: 0;
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #1f2937;
+}
+
+.asp-loading {
+    color: #9ca3af;
+}
+
+.asp-error {
+    color: #ef4444;
+}
+
+.asp-season-select {
+    margin-bottom: 16px;
+}
+
+.asp-season-select select {
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid #d1d5db;
+    font-size: 14px;
+    color: #374151;
+    background: white;
+    cursor: pointer;
+}
+
+.asp-tab-bar {
+    display: flex;
+    border-bottom: 2px solid #e5e7eb;
+    margin-bottom: 20px;
+}
+
+.asp-tab-btn {
+    padding: 10px 20px;
+    border: none;
+    background: none;
+    font-size: 14px;
+    font-weight: 500;
+    color: #6b7280;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+}
+
+.asp-tab-btn.active {
+    font-weight: 600;
+    color: #3b82f6;
+    border-bottom-color: #3b82f6;
+}
