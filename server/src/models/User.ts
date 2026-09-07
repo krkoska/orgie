@@ -1,4 +1,4 @@
-import mongoose, { Document, Schema } from 'mongoose';
+import mongoose, { Document, Model, Schema } from 'mongoose';
 import bcrypt from 'bcrypt';
 
 export enum UserRole {
@@ -20,6 +20,10 @@ export interface IUser extends Document {
     createdAt: Date;
     updatedAt: Date;
     matchPassword(enteredPassword: string): Promise<boolean>;
+}
+
+interface IUserModel extends Model<IUser> {
+    findByEmail(email: string): Promise<IUser | null>;
 }
 
 const UserSchema: Schema = new Schema({
@@ -62,8 +66,10 @@ UserSchema.index(
     }
 );
 
-// Middleware to hash password before saving
 UserSchema.pre<IUser>('save', async function () {
+    if (this.email && this.isModified('email')) {
+        this.email = this.email.toLowerCase();
+    }
     if (!this.passwordHash || !this.isModified('passwordHash')) {
         return;
     }
@@ -76,4 +82,8 @@ UserSchema.methods.matchPassword = async function (enteredPassword: string): Pro
     return await bcrypt.compare(enteredPassword, this.passwordHash);
 };
 
-export default mongoose.model<IUser>('User', UserSchema);
+UserSchema.statics.findByEmail = function (email: string): Promise<IUser | null> {
+    return this.findOne({ email: email.toLowerCase() });
+};
+
+export default mongoose.model<IUser, IUserModel>('User', UserSchema);

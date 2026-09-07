@@ -43,7 +43,7 @@ export const registerUser = async (req: Request, res: Response) => {
         const validatedData = registerSchema.parse(req.body);
         const { email, password, firstName, lastName, nickname, preferNickname } = validatedData;
 
-        const userExists = await User.findOne({ email });
+        const userExists = await User.findByEmail(email);
 
         if (userExists) {
             logger.warn('Registration attempt with existing email', { email });
@@ -92,7 +92,7 @@ export const loginUser = async (req: Request, res: Response) => {
         const validatedData = loginSchema.parse(req.body);
         const { email, password } = validatedData;
 
-        const user = await User.findOne({ email });
+        const user = await User.findByEmail(email);
 
         if (user && (await user.matchPassword(password))) {
             const { accessToken, refreshToken } = generateTokens(user._id.toString());
@@ -181,7 +181,7 @@ export const getMe = async (req: Request, res: Response) => {
 export const forgotPassword = async (req: Request, res: Response) => {
     try {
         const { email } = forgotPasswordSchema.parse(req.body);
-        const user = await User.findOne({ email });
+        const user = await User.findByEmail(email);
 
         if (!user) {
             // Don't reveal if user exists or not for security
