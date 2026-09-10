@@ -1209,11 +1209,15 @@ export const getAdvancedAttendanceStats = async (req: Request, res: Response) =>
 
 export const getEventStats = async (req: Request, res: Response) => {
     try {
-        const event = await Event.findOne({ uuid: req.params.uuid })
-            .populate({ path: 'attendees.id', model: 'User', select: 'firstName lastName nickname preferNickname' });
+        const event = await Event.findOne({ uuid: req.params.uuid });
         if (!event) {
             return res.status(404).json({ message: 'Event not found' });
         }
+
+        // Guests share the attendees.id field with users but aren't User documents,
+        // so populate() leaves their id null — capture the raw ids first to fall back on.
+        const originalAttendees = JSON.parse(JSON.stringify(event.attendees));
+        await event.populate({ path: 'attendees.id', model: 'User', select: 'firstName lastName nickname preferNickname' });
 
         // --- Fetch archived terms (same logic as getArchivedTerms) ---
         const now = new Date();
@@ -1299,9 +1303,9 @@ export const getEventStats = async (req: Request, res: Response) => {
         }>();
 
         // Initialize from current event participants (event.attendees.id is populated)
-        event.attendees.forEach((a: any) => {
+        event.attendees.forEach((a: any, idx: number) => {
             const populated = typeof a.id === 'object' && a.id !== null && a.id._id;
-            const id = populated ? a.id._id.toString() : a.id.toString();
+            const id = populated ? a.id._id.toString() : (a.id ? a.id.toString() : originalAttendees[idx]?.id);
             const key = `${a.kind}-${id}`;
             if (!statsMap.has(key)) {
                 let name = 'Unknown';
