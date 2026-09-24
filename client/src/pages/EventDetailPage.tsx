@@ -1285,7 +1285,7 @@ const EventDetailPage: React.FC = () => {
                 statsTerm && (
                     <TermStatsModal
                         termId={statsTerm._id}
-                        participants={statsTerm.attendees.map((a: any) => {
+                        participants={getUniqueAttendees(statsTerm.attendees).map((a: any) => {
                             let name = 'Unknown';
                             if (a.kind === 'USER' && typeof a.id === 'object' && a.id !== null) {
                                 name = (a.id as User).preferNickname && (a.id as User).nickname ? (a.id as User).nickname! : `${(a.id as User).firstName} ${(a.id as User).lastName}`;

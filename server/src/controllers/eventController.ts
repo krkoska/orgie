@@ -571,8 +571,12 @@ export const toggleTermAttendance = async (req: Request, res: Response) => {
                 }
             }
 
+            // Guard the push with a "not already present" filter so it's applied
+            // atomically at the DB level: two concurrent toggle requests (e.g. a
+            // double-tap on a flaky connection) can no longer both pass the earlier
+            // in-memory isAttending check and both push, creating duplicate entries.
             await Term.updateOne(
-                { _id: term._id },
+                { _id: term._id, attendees: { $not: { $elemMatch: { id: targetUserId, kind: kind } } } },
                 { $push: { attendees: { id: targetUserId, kind: kind } } }
             );
         }
@@ -645,8 +649,10 @@ export const toggleEventAttendance = async (req: Request, res: Response) => {
                 { $pull: { attendees: { id: targetUserId, kind: kind } } }
             );
         } else {
+            // See toggleTermAttendance for why the filter guards against a
+            // concurrent duplicate push.
             await Event.updateOne(
-                { _id: event._id },
+                { _id: event._id, attendees: { $not: { $elemMatch: { id: targetUserId, kind: kind } } } },
                 { $push: { attendees: { id: targetUserId, kind: kind } } }
             );
         }
@@ -1371,8 +1377,14 @@ export const getEventStats = async (req: Request, res: Response) => {
                     teamsWithStats.forEach((team: any) => {
                         const isTop = topTeams.some((tt: any) => tt.name === team.name);
                         const outcome = isTop ? (singleWinner ? 'WIN' : 'DRAW') : 'LOSS';
+                        const countedMemberKeys = new Set<string>();
                         team.members.forEach((member: any) => {
                             const key = `${member.kind}-${member.id}`;
+                            // Defensive dedup: a member key already counted for this
+                            // team/term must not be scored twice (e.g. from legacy
+                            // duplicate attendee data saved before the toggle race fix).
+                            if (countedMemberKeys.has(key)) return;
+                            countedMemberKeys.add(key);
                             const stats = statsMap.get(key);
                             if (stats && termAttendeeKeys.has(key)) {
                                 if (outcome === 'WIN') stats.wins += 1;
